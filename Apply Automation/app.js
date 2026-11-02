@@ -103,6 +103,7 @@ const storageKeys = {
   profileLeftWidth: "automationClone.profileLeftWidth",
   profileCommentsWidth: "automationClone.profileCommentsWidth",
   applicantTodoVisibleColumns: "automationClone.applicantTodoVisibleColumns",
+  recentApplicants: "automationClone.recentApplicants",
   documentChecklists: "automationClone.documentChecklists",
 };
 
@@ -127,6 +128,7 @@ data.profileLogs = localState.profileLogs;
 data.localSmsDrafts = localState.smsDrafts;
 data.localTemplates = localState.templates;
 data.applicantVisibleColumns = localState.applicantVisibleColumns;
+data.recentApplicants = localState.recentApplicants.length ? localState.recentApplicants : data.recentApplicants;
 data.documentChecklists = localState.documentChecklists;
 appState.applicantTodoVisibleColumns = localState.applicantTodoVisibleColumns.length
   ? localState.applicantTodoVisibleColumns
@@ -618,12 +620,14 @@ function table(headers, rows, options = {}) {
     .filter(({ row, fullRow }) => `${row.join(" ")} ${fullRow.join(" ")}`.toLowerCase().includes(filter));
   const dataHeaders = options.fullHeaders || headers;
   const rowAction = options.rowAction ? ` data-action="${escapeHtml(options.rowAction)}"` : "";
+  const rowApplicantName = options.rowAction === "open-recent-applicant" ? ` data-applicant-name="${escapeHtml(String(rows[0]?.[0] || ""))}"` : "";
+  const firstCellAction = options.firstCellAction || "";
   return `
     <table class="data-table">
       <thead><tr>${headers.map((head, index) => `<th><button class="sort-button" data-action="sort-table" data-index="${index}">${escapeHtml(head)}</button></th>`).join("")}</tr></thead>
       <tbody>
         ${filtered.length ? filtered.map(({ row, fullRow }) => `
-          <tr class="data-row"${rowAction} data-headers="${encodeURIComponent(JSON.stringify(dataHeaders))}" data-row="${encodeURIComponent(JSON.stringify(fullRow))}">${row.map((cell, index) => `<td>${renderCell(cell, index === row.length - 1)}</td>`).join("")}</tr>
+          <tr class="data-row"${rowAction}${options.rowAction === "open-recent-applicant" ? ` data-applicant-name="${escapeHtml(String(fullRow[0] || row[0] || ""))}"` : ""} data-headers="${encodeURIComponent(JSON.stringify(dataHeaders))}" data-row="${encodeURIComponent(JSON.stringify(fullRow))}">${row.map((cell, index) => `<td>${firstCellAction && index === 0 ? `<button class="table-link" data-action="${escapeHtml(firstCellAction)}" data-applicant-name="${escapeHtml(String(fullRow[0] || cell || ""))}">${escapeHtml(cell)}</button>` : renderCell(cell, index === row.length - 1)}</td>`).join("")}</tr>
         `).join("") : `<tr><td colspan="${headers.length}" class="empty">No data</td></tr>`}
       </tbody>
     </table>
@@ -717,7 +721,8 @@ function pageHead(title, subtitle, action = "") {
 
 function renderDashboard() {
   const pageSize = 5;
-  const recentPages = Math.max(1, Math.ceil(26 / pageSize));
+  const recentPages = Math.max(1, Math.ceil(data.recentApplicants.length / pageSize));
+  appState.recentPage = Math.min(Math.max(1, Number(appState.recentPage) || 1), recentPages);
   const visibleRecent = data.recentApplicants.slice((appState.recentPage - 1) * pageSize, appState.recentPage * pageSize);
   const followupRows = data.localFollowups.map((item) => [item.name, item.type, item.remarks, item.status]);
   const todoRows = {
@@ -736,7 +741,7 @@ function renderDashboard() {
     <div class="layout-grid">
       <div>
         ${panel("Pinned data", `<div class="table-tools"><input placeholder="Filter..." /></div><div class="empty">No data</div>`, 0)}
-        ${panel("Recently viewed data", `${table(["Applicant", "Project", "Viewed"], visibleRecent)}<div class="pager">${Array.from({ length: recentPages }, (_, index) => `<button class="page-btn ${appState.recentPage === index + 1 ? "active" : ""}" data-action="recent-page" data-page="${index + 1}">${index + 1}</button>`).join("")}</div>`, 26)}
+        ${panel("Recently viewed data", `${table(["Applicant", "Project", "Viewed"], visibleRecent, { rowAction: "open-recent-applicant", firstCellAction: "open-recent-applicant" })}<div class="pager">${Array.from({ length: recentPages }, (_, index) => `<button class="page-btn ${appState.recentPage === index + 1 ? "active" : ""}" data-action="recent-page" data-page="${index + 1}">${index + 1}</button>`).join("")}</div>`, data.recentApplicants.length)}
         ${panel("Followup list", followupRows.length ? table(["Name", "Type", "Remarks", "Status"], followupRows) : `<div class="empty">No local followups yet</div>`, followupRows.length)}
       </div>
       <div>
@@ -5825,6 +5830,8 @@ document.addEventListener("click", (event) => {
     // Selection state is handled by the change listener so row clicks remain separate.
   } else if (action === "open-applicant") {
     openApplicantProfile(actionButton);
+  } else if (action === "open-recent-applicant") {
+    openRecentApplicant(actionButton);
   } else if (action === "sort-table") {
     sortTable(actionButton);
   } else if (action === "applicant-column-chooser") {
@@ -5850,6 +5857,7 @@ document.addEventListener("click", (event) => {
   } else if (action === "open-applicant-progress") {
     const record = applicantProgressRecords().find((item) => String(item.id || "") === String(actionButton.dataset.progressId || ""));
     if (record) {
+      recordRecentApplicant(record);
       appState.activeApplicant = record;
       appState.profileWindowOpen = true;
       storeObject(storageKeys.activeApplicant, record);
@@ -6408,10 +6416,40 @@ function openApplicantProfile(row) {
   const record = profileRecord(headers, values);
   record.id = values[0] || "67066";
   record.created = values[6] || record.created || "March 3, 2024 11:24 AM";
+  recordRecentApplicant(record);
   appState.activeApplicant = record;
   appState.profileWindowOpen = true;
   closeDetailDrawer();
   storeObject(storageKeys.activeApplicant, record);
+  render();
+}
+
+function recordRecentApplicant(record) {
+  const name = String(record?.name || "").trim();
+  if (!name) return;
+  const project = "STUDENT VISA - JAPAN";
+  const current = Array.isArray(data.recentApplicants) ? data.recentApplicants : [];
+  const withoutCurrent = current.filter((row) => String(row?.[0] || "").trim().toLowerCase() !== name.toLowerCase());
+  data.recentApplicants = [[name, project, "just now"], ...withoutCurrent].slice(0, 26);
+  storeArray(storageKeys.recentApplicants, data.recentApplicants);
+}
+
+function openRecentApplicant(button) {
+  const name = String(button.dataset.applicantName || "").trim();
+  if (!name) return;
+  const record = applicantProgressRecords().find((item) => String(item.name || "").trim().toLowerCase() === name.toLowerCase()) || {
+    id: `RECENT-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    name,
+    owner: "Unassigned",
+    status: "Inquiry",
+    created: "",
+  };
+  recordRecentApplicant(record);
+  appState.activeApplicant = record;
+  appState.profileWindowOpen = true;
+  closeDetailDrawer();
+  storeObject(storageKeys.activeApplicant, record);
+  location.hash = "applicant-profile";
   render();
 }
 
@@ -6435,6 +6473,7 @@ function loadLocalState() {
     profileLeftWidth: readStoredNumber(storageKeys.profileLeftWidth, 22),
     profileCommentsWidth: readStoredNumber(storageKeys.profileCommentsWidth, 22),
     applicantTodoVisibleColumns: readStoredArray(storageKeys.applicantTodoVisibleColumns),
+    recentApplicants: readStoredArray(storageKeys.recentApplicants),
   };
 }
 

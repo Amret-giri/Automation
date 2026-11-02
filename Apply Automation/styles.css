@@ -11577,3 +11577,25 @@ html.dark-mode .sample-summary-grid div.is-priority strong {
   justify-content: center;
   padding-inline: 8px;
 }
+/* Dashboard recently viewed applicants */
+.data-table .table-link {
+  background: transparent;
+  border: 0;
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+  padding: 0;
+  text-align: left;
+}
+
+.data-table .table-link:hover,
+.data-table .table-link:focus-visible {
+  color: var(--accent-strong, #1d4ed8);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+body:not(.applicant-dashboard) .layout-grid .data-table tbody tr[data-action="open-recent-applicant"] {
+  cursor: pointer;
+}

@@ -9,6 +9,7 @@ const JSZip = require("/Users/specialjapaneselanguageacademy/.cache/codex-runtim
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8765);
+const HOST = process.env.HOST || "0.0.0.0";
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const UPLOAD_INDEX = path.join(UPLOAD_DIR, "index.json");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -678,4 +679,4 @@ const server = http.createServer(async (request, response) => {
   serveStatic(request, response);
 });
 
-server.listen(PORT, "127.0.0.1", () => console.log(`Automation clone serving on http://127.0.0.1:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`Automation clone serving on ${HOST}:${PORT}`));
