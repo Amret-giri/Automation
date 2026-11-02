@@ -620,7 +620,6 @@ function table(headers, rows, options = {}) {
     .filter(({ row, fullRow }) => `${row.join(" ")} ${fullRow.join(" ")}`.toLowerCase().includes(filter));
   const dataHeaders = options.fullHeaders || headers;
   const rowAction = options.rowAction ? ` data-action="${escapeHtml(options.rowAction)}"` : "";
-  const rowApplicantName = options.rowAction === "open-recent-applicant" ? ` data-applicant-name="${escapeHtml(String(rows[0]?.[0] || ""))}"` : "";
   const firstCellAction = options.firstCellAction || "";
   return `
     <table class="data-table">
