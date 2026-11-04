@@ -3,9 +3,7 @@ const data = window.crmData;
 const menu = [
   ["MAIN", [["Dashboard", "dashboard", "layout-dashboard", "⌂"]]],
   ["AI HUB", []],
-  ["FRONTDESK", [["Dashboard", "frontdesk", "monitor", "▤"], ["Visitor Entry", "visitor-entry", "user-round-plus", "✎"], ["Visitor List", "visitor-list", "clipboard-list", "☷"]]],
-  ["APPLICANT", [["Add New Applicant", "add-applicant", "user-round-plus", "＋"], ["Applicant List", "applicants", "users-round", "☰"], ["Class Bulk Attendance", "attendance", "calendar-check-2", "◷"]]],
-  ["PAYMENT", [["Payment Dashboard", "payment-dashboard", "chart-no-axes-combined", "▣"], ["Payment List", "payment-list", "receipt-text", "≡"], ["Payment Followup", "payment-followup", "calendar-clock", "◈"]]],
+  ["APPLICANT", [["Add New Applicant", "add-applicant", "user-round-plus", "＋"], ["Applicant List", "applicants", "users-round", "☰"]]],
   ["REPORTS", [["Account Statement (Draft)", "statement", "file-spreadsheet", "▥"], ["Follow-Up Report", "followup-report", "clipboard-clock", "↗"], ["Communication Summary", "communication", "messages-square", "✉"], ["SMS Report", "sms-report", "message-square-text", "✦"], ["Visualization", "visualization", "chart-column-increasing", "◉"], ["Document Log", "document-log", "file-clock", "▧"], ["CMB Report", "cmb-report", "chart-no-axes-column", "◫"], ["Document Process Report", "document-process-report", "file-check-2", "◌"], ["Quantum Students", "quantum-students", "orbit", "◇"], ["Special Japanese Students", "special-japanese-students", "graduation-cap", "✺"]]],
   ["MODULES", [["Bank", "bank", "landmark", "⌬"], ["Consultancy", "consultancy", "handshake", "♙"], ["Fiscal Year", "fiscal-year", "calendar-range", "⌁"], ["Intake", "intake", "calendar-days", "⧉"], ["School", "school", "school", "▰"], ["Document templates", "document-templates", "files", "▱"], ["Document Resources", "document-resources", "folder-open", "◍"], ["Data Import", "data-import", "database-zap", "⇪"], ["Settings", "settings", "settings-2", "⚙"], ["Trash", "trash", "trash-2", "⌫"], ["Excel File Validation Tool", "excel-validation", "file-check-2", "▦"], ["Excel to CSV Converter", "excel-csv", "file-spreadsheet", "⇄"], ["PDF to Word Converter", "pdf-word", "file-type-2", "⊞"], ["Download Rustdesk", "rustdesk", "monitor-down", "⇩"]]],
 ];
@@ -21,12 +19,17 @@ const appState = {
   accountOverflowOpen: false,
   accountTransactionPanel: "",
   accountTransactionPageSize: 10,
+  accountTransactionYearFilter: "all",
   accountCalendarField: "",
   accountCalendarMonth: "",
   accountCalendarSelected: "",
   incomeCalendarField: "",
   incomeCalendarMonth: "",
   incomeCalendarSelected: "",
+  officialDobBsPickerOpen: false,
+  officialDobBsPicker: { year: 2083, month: 1, day: 1 },
+  familyDobBsPicker: { year: 2083, month: 1, day: 1 },
+  familyDobPickerTargetForm: null,
   accountFamilyPickerOpen: false,
   familyAccountHolderSelectionMode: false,
   profileMoreCalendarOpen: false,
@@ -58,11 +61,14 @@ const appState = {
   applicantTodoSearch: "",
   applicantTodoVisibleColumns: ["Applicant", "Progress", "Remaining", "Next task", "Owner", "Status"],
   applicantTaskWorkflow: { open: false, recordId: "", taskId: "" },
+  officialLinkedDataOpen: false,
+  officialLinkedDataIntake: "",
   documentChecklistSearch: "",
   documentChecklistCategory: "All",
   documentChecklistView: "master",
   documentChecklistExpanded: {},
   documentChecklistFullscreen: false,
+  commentFocusId: "",
   applicantFilters: {
     gender: "Gender",
     intake: "Select...",
@@ -106,6 +112,14 @@ const storageKeys = {
   recentApplicants: "automationClone.recentApplicants",
   documentChecklists: "automationClone.documentChecklists",
 };
+
+const automationCommentUsers = [
+  { id: "user-you", name: "You", role: "Current user" },
+  { id: "user-amrit", name: "Amrit Sensei", role: "Counsellor" },
+  { id: "user-sabina", name: "Sabina Rijal", role: "Documentation" },
+  { id: "user-manik", name: "Manik Giri", role: "Manager" },
+  { id: "user-apsara", name: "Apsara Maharjan", role: "Front desk" },
+];
 
 const localState = loadLocalState();
 if (localState.activeApplicant?.name) {
@@ -259,21 +273,19 @@ const profileFormFields = {
     "Approved",
   ],
   Official: [
-    "NID",
+    "Province",
+    "District",
     "Palika",
     "Palika Type",
     "Ward No",
-    "District",
-    "Province",
+    "NID",
     "New Address (Full)",
     "Complete Address",
     "Citizenship No",
     "DOB BS",
     "DOB",
-    "NID No",
     "Intake",
     "Course",
-    "Status",
     "Passport Issued Date",
     "Passport No",
     "Passport Expiry Date",
@@ -408,7 +420,72 @@ const nepalPublicHolidayDates = {
   "2026-09-14": "Constitution Day holiday",
   "2026-09-25": "Ghatasthapana",
   "2026-10-05": "Dashain holiday",
+
+  // Nepal Rastra Bank / Ministry of Home Affairs reference dates for the
+  // 2077 BS holiday cycle (AD 2020–2021), used by the observed Automation
+  // calendar for historical account-opening and transaction dates.
+  "2020-04-13": "Nepali New Year",
+  "2020-05-01": "Labour Day",
+  "2020-05-07": "Buddha Jayanti",
+  "2020-08-04": "Gai Jatra",
+  "2020-08-21": "Teej",
+  "2020-09-01": "Indra Jatra",
+  "2020-09-19": "Constitution Day",
+  "2020-10-23": "Dashain holiday",
+  "2020-10-24": "Dashain holiday",
+  "2020-10-25": "Dashain holiday",
+  "2020-10-26": "Dashain holiday",
+  "2020-10-27": "Dashain holiday",
+  "2020-11-14": "Tihar holiday",
+  "2020-11-15": "Tihar holiday",
+  "2020-11-16": "Tihar holiday",
+  "2020-12-25": "Christmas Day",
+  "2020-12-30": "Udhauli / Yomari Punhi",
+  "2021-01-14": "Maghe Sankranti",
+  "2021-02-12": "Sonam Lhosar",
+  "2021-03-11": "Maha Shivaratri",
+  "2021-03-28": "Ghode Jatra",
+  "2021-03-29": "Holi",
+  "2021-04-14": "Nepali New Year",
+  "2021-05-14": "Eid ul-Fitr",
+  "2021-05-26": "Buddha Jayanti",
+  "2021-05-29": "Republic Day",
+  "2021-08-22": "Janai Purnima",
+  "2021-08-23": "Gai Jatra",
+  "2021-09-09": "Teej",
+  "2021-09-19": "Constitution Day",
+  "2021-09-29": "Indra Jatra",
+  "2021-10-07": "Ghatasthapana",
+  "2021-10-12": "Fulpati",
+  "2021-10-13": "Maha Ashtami",
+  "2021-10-14": "Maha Navami",
+  "2021-10-15": "Vijaya Dashami",
+  "2021-10-16": "Vijaya Dashami holiday",
+  "2021-11-04": "Laxmi Puja",
+  "2021-11-05": "Govardhan Puja",
+  "2021-11-06": "Bhai Tika",
+  "2021-11-07": "Tihar holiday",
+  "2021-11-10": "Chhath Parva",
+  "2021-11-15": "Phalgunanda Jayanti",
+  "2021-11-19": "Guru Nanak Jayanti",
+  "2021-12-03": "International Disability Day",
+  "2021-12-25": "Christmas Day",
+  "2021-12-30": "Tamu Lhosar",
 };
+
+function defaultAccountOpeningDate(record = {}) {
+  const identity = String(record?.id || record?.localId || record?.name || "account");
+  let seed = 0;
+  for (const character of identity) seed = (seed * 31 + character.charCodeAt(0)) >>> 0;
+  const today = new Date();
+  const date = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+  // Keep the date random-looking but deterministic per applicant, so it does
+  // not change on every render or when a different calendar is opened.
+  date.setDate(date.getDate() - (seed % 365));
+  date.setHours(12, 0, 0, 0);
+  while (holidayNameForDate(date)) date.setDate(date.getDate() - 1);
+  return date;
+}
 
 // Captured statement behavior: interest is posted at the end of every third
 // Bikram Sambat month, then exported and displayed as an English/AD date.
@@ -447,6 +524,281 @@ const nepaliInterestQuarterEnds = [
   ["2086-09-30", "2030-01-14", "Poush 30, 2086"],
   ["2086-12-30", "2030-04-13", "Chaitra 30, 2086"],
 ].map(([bs, ad, label]) => ({ bs, ad, label }));
+
+// Bikram Sambat month-length table used by the official DOB picker. Each
+// encoded year stores 12 two-bit month lengths (29 + 0..3 days), anchored so
+// 1 Baisakh 1970 BS resolves to 13 April 1913 AD. This keeps BS→AD conversion local and
+// deterministic instead of depending on a remote date service.
+const bsCalendarYearZero = 1970;
+// The reference epoch is 1970-01-01 BS = 1913-04-13 AD. The half-day
+// component mirrors the established Bikram Sambat conversion convention and
+// keeps the UTC date stable across browsers and local time zones.
+const bsCalendarEpochUtc = Date.UTC(1913, 3, 12, 12, 30);
+const bsCalendarMonthLengths = [
+  5315258,5314490,9459438,8673005,5315258,5315066,9459438,8673005,5315258,5314298,9459438,5327594,5315258,5314298,9459438,5327594,5315258,5314286,9459438,5315306,5315258,5314286,8673006,5315306,5315258,5265134,8673006,5315258,5315258,9459438,8673005,5315258,5314298,9459438,8673005,5315258,5314298,9459438,8473322,5315258,5314298,9459438,5327594,5315258,5314298,9459438,5327594,5315258,5314286,8673006,5315306,5315258,5265134,8673006,5315306,5315258,9459438,8673005,5315258,5314490,9459438,8673005,5315258,5314298,9459438,8473325,5315258,5314298,9459438,5327594,5315258,5314298,9459438,5327594,5315258,5314286,9459438,5315306,5315258,5265134,8673006,5315306,5315258,5265134,8673006,5315258,5314490,9459438,8673005,5315258,5314298,9459438,8669933,5315258,5314298,9459438,8473322,5315258,5314298,9459438,5327594,5315258,5314286,9459438,5315306,5315258,5265134,8673006,5315306,5315258,5265134,8673006,5315258,5315258,5527226,5528046,5527277,5528250,5528057,5527277,5527277
+];
+const bsCalendarMonthNames = ["Baisakh", "Jestha", "Asar", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+
+function bsCalendarDaysInMonth(year, month) {
+  const encoded = bsCalendarMonthLengths[Number(year) - bsCalendarYearZero];
+  if (!Number.isFinite(encoded) || month < 1 || month > 12) return 0;
+  return 29 + ((encoded >>> ((month - 1) * 2)) & 3);
+}
+
+function parseBsDate(value) {
+  const match = String(value || "").trim().match(/^(\d{4})[-/]([0-1]?\d)[-/]([0-3]?\d)$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const daysInMonth = bsCalendarDaysInMonth(year, month);
+  return daysInMonth && day >= 1 && day <= daysInMonth ? { year, month, day } : null;
+}
+
+function bsDateToAdIso(value) {
+  const parsed = parseBsDate(value);
+  if (!parsed) return "";
+  let offset = parsed.day;
+  for (let year = bsCalendarYearZero; year < parsed.year; year += 1) {
+    for (let month = 1; month <= 12; month += 1) offset += bsCalendarDaysInMonth(year, month);
+  }
+  for (let month = 1; month < parsed.month; month += 1) offset += bsCalendarDaysInMonth(parsed.year, month);
+  const date = new Date(bsCalendarEpochUtc + offset * 86400000);
+  if (Number.isNaN(date.getTime())) return "";
+  return [date.getUTCFullYear(), String(date.getUTCMonth() + 1).padStart(2, "0"), String(date.getUTCDate()).padStart(2, "0")].join("-");
+}
+
+function adDateToBsIso(date = new Date()) {
+  const target = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(target.getTime()) || target.getTime() < bsCalendarEpochUtc) return "";
+  let remaining = Math.floor((Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate()) - bsCalendarEpochUtc) / 86400000) + 1;
+  let year = bsCalendarYearZero;
+  while (year - bsCalendarYearZero < bsCalendarMonthLengths.length) {
+    const yearDays = Array.from({ length: 12 }, (_, index) => bsCalendarDaysInMonth(year, index + 1)).reduce((sum, days) => sum + days, 0);
+    if (remaining < yearDays) break;
+    remaining -= yearDays;
+    year += 1;
+  }
+  for (let month = 1; month <= 12; month += 1) {
+    const monthDays = bsCalendarDaysInMonth(year, month);
+    if (remaining <= monthDays) return `${year}-${String(month).padStart(2, "0")}-${String(remaining).padStart(2, "0")}`;
+    remaining -= monthDays;
+  }
+  return "";
+}
+
+function formatOfficialDobAd(value) {
+  const iso = bsDateToAdIso(value);
+  if (!iso) return "";
+  const date = new Date(`${iso}T12:00:00Z`);
+  return `${date.getUTCDate()} ${date.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}, ${date.getUTCFullYear()}`;
+}
+
+function officialDobPickerValue(record = appState.activeApplicant) {
+  const official = profileSectionData(record).Official || {};
+  const saved = parseBsDate(official.dob_bs);
+  if (saved) return saved;
+  const current = parseBsDate(adDateToBsIso(new Date()));
+  return current || { year: 2083, month: 1, day: 1 };
+}
+
+function renderOfficialBsDatePicker(record) {
+  if (!appState.officialDobBsPickerOpen) return "";
+  const selected = appState.officialDobBsPicker || officialDobPickerValue(record);
+  const yearStart = 1970;
+  const yearEnd = 2150;
+  const monthOptions = bsCalendarMonthNames.map((name, index) => `<option value="${index + 1}"${Number(selected.month) === index + 1 ? " selected" : ""}>${index + 1} · ${name}</option>`).join("");
+  const yearOptions = Array.from({ length: yearEnd - yearStart + 1 }, (_, index) => yearStart + index)
+    .map((year) => `<option value="${year}"${Number(selected.year) === year ? " selected" : ""}>${year}</option>`).join("");
+  const daysInMonth = bsCalendarDaysInMonth(selected.year, selected.month);
+  const dayOptions = Array.from({ length: daysInMonth || 32 }, (_, index) => index + 1)
+    .map((day) => `<option value="${day}"${Number(selected.day) === day ? " selected" : ""}>${String(day).padStart(2, "0")}</option>`).join("");
+  const bsValue = `${selected.year}-${String(selected.month).padStart(2, "0")}-${String(selected.day).padStart(2, "0")}`;
+  const adValue = formatOfficialDobAd(bsValue);
+  return `
+    <div class="official-bs-date-picker" role="dialog" aria-label="Birth date Bikram Sambat picker">
+      <div class="official-bs-date-picker-head">
+        <div><strong><span class="date-converter-logo date-converter-logo--compact" aria-hidden="true">मिति</span> Birth Date (BS) · मिति परिवर्तन</strong><small>Pick from the Patro calendar controls; the AD DOB is calculated automatically.</small></div>
+        <button type="button" class="icon-button" data-action="close-official-bs-date-picker" title="Close date picker" aria-label="Close date picker">×</button>
+      </div>
+      <div class="official-bs-date-picker-grid">
+        <label>Year<select class="official-bs-date-part" data-part="year">${yearOptions}</select></label>
+        <label>Month<select class="official-bs-date-part" data-part="month">${monthOptions}</select></label>
+        <label>Day<select class="official-bs-date-part" data-part="day">${dayOptions}</select></label>
+      </div>
+      ${renderBsDayGrid(selected, "official")}
+      <div class="official-bs-date-picker-preview"><span>मिति परिवर्तन · Converted AD DOB</span><strong>${escapeHtml(adValue || "Select a valid BS date")}</strong></div>
+      <div class="official-bs-date-picker-actions">
+        <button type="button" class="ghost-btn" data-action="close-official-bs-date-picker">Cancel</button>
+        <button type="button" class="primary-btn" data-action="apply-official-bs-date"${adValue ? "" : " disabled"}>Use converted AD DOB</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderBsDayGrid(selected, scope) {
+  const days = bsCalendarDaysInMonth(selected.year, selected.month) || 32;
+  return `<div class="patro-calendar-grid" aria-label="Patro calendar day selection"><span class="patro-calendar-label">Patro calendar days</span><div class="patro-calendar-days">${Array.from({ length: days }, (_, index) => index + 1).map((day) => `<button type="button" class="patro-calendar-day${Number(selected.day) === day ? " is-selected" : ""}" data-action="select-bs-picker-day" data-picker-scope="${scope}" data-day="${day}" aria-label="Select day ${day}">${day}</button>`).join("")}</div></div>`;
+}
+
+function openOfficialBsDatePicker() {
+  if (!appState.activeApplicant) return;
+  appState.officialDobBsPicker = officialDobPickerValue(appState.activeApplicant);
+  appState.officialDobBsPickerOpen = true;
+  render();
+}
+
+function positionOfficialBsDatePicker() {
+  const picker = document.querySelector(".official-bs-date-picker:not(.family-bs-date-picker)");
+  const trigger = document.querySelector('.profile-entry-form[data-profile-section="Official"] button[data-action="open-official-bs-date-picker"]');
+  if (!picker || !trigger || !appState.officialDobBsPickerOpen) return;
+
+  const viewportGap = 12;
+  const pickerWidth = Math.min(560, Math.max(280, window.innerWidth - (viewportGap * 2)));
+  picker.style.width = `${pickerWidth}px`;
+  picker.style.maxWidth = `calc(100vw - ${viewportGap * 2}px)`;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const pickerHeight = Math.min(picker.getBoundingClientRect().height, window.innerHeight - (viewportGap * 2));
+  let top = triggerRect.bottom + 8;
+  if (top + pickerHeight > window.innerHeight - viewportGap) top = triggerRect.top - pickerHeight - 8;
+  top = Math.max(viewportGap, Math.min(top, window.innerHeight - pickerHeight - viewportGap));
+
+  let left = triggerRect.right - pickerWidth;
+  left = Math.max(viewportGap, Math.min(left, window.innerWidth - pickerWidth - viewportGap));
+  picker.style.left = `${Math.round(left)}px`;
+  picker.style.top = `${Math.round(top)}px`;
+}
+
+function closeOfficialBsDatePicker() {
+  if (!appState.officialDobBsPickerOpen) return;
+  appState.officialDobBsPickerOpen = false;
+  render();
+}
+
+function updateOfficialBsDatePickerPart(part, value) {
+  const current = { ...(appState.officialDobBsPicker || officialDobPickerValue(appState.activeApplicant)) };
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) return;
+  current[part] = nextValue;
+  const maxDay = bsCalendarDaysInMonth(current.year, current.month);
+  if (part === "year" || part === "month") current.day = Math.min(current.day, maxDay || current.day);
+  appState.officialDobBsPicker = current;
+  render();
+}
+
+function selectBsPickerDay(scope, day) {
+  const nextDay = Number(day);
+  if (!Number.isFinite(nextDay)) return;
+  if (scope === "family") {
+    appState.familyDobBsPicker = { ...(appState.familyDobBsPicker || officialDobPickerValue(appState.activeApplicant)), day: nextDay };
+    document.getElementById("familyBsDatePickerModal")?.remove();
+    document.body.insertAdjacentHTML("beforeend", renderFamilyBsDatePicker());
+    window.lucide?.createIcons?.({ attrs: { "stroke-width": "1.8" } });
+    return;
+  }
+  appState.officialDobBsPicker = { ...(appState.officialDobBsPicker || officialDobPickerValue(appState.activeApplicant)), day: nextDay };
+  render();
+}
+
+function applyOfficialBsDate() {
+  const record = appState.activeApplicant;
+  if (!record) return;
+  const selected = appState.officialDobBsPicker || officialDobPickerValue(record);
+  const bsValue = `${selected.year}-${String(selected.month).padStart(2, "0")}-${String(selected.day).padStart(2, "0")}`;
+  const adValue = formatOfficialDobAd(bsValue);
+  if (!adValue) {
+    showToast("Select a valid Bikram Sambat date.");
+    return;
+  }
+  const official = profileSectionData(record).Official || (profileSectionData(record).Official = {});
+  const previousBs = String(official.dob_bs || "");
+  const previousAd = String(official.dob || "");
+  official.dob_bs = bsValue;
+  official.dob = adValue;
+  storeObject(storageKeys.profileSections, data.profileSections);
+  if (previousBs !== bsValue || previousAd !== adValue) {
+    appendProfileLog(record, {
+      type: "changed",
+      tab: "Official",
+      dataModule: "Official",
+      changes: [
+        { field: "DOB BS", oldValue: previousBs, newValue: bsValue },
+        { field: "DOB", oldValue: previousAd, newValue: adValue },
+      ],
+    });
+  }
+  appState.officialDobBsPickerOpen = false;
+  render();
+  showToast(`DOB converted: ${bsValue} BS → ${adValue} AD`);
+}
+
+function familyDobPickerValue(form) {
+  const bsValue = String(form?.elements?.dob_bs?.value || "").trim();
+  const parsedBs = parseBsDate(bsValue);
+  if (parsedBs) return parsedBs;
+  const rawAd = String(form?.elements?.dob?.value || "").trim();
+  const adDate = rawAd ? new Date(rawAd) : null;
+  const converted = adDate && !Number.isNaN(adDate.getTime()) ? adDateToBsIso(adDate) : "";
+  return parseBsDate(converted) || officialDobPickerValue(appState.activeApplicant);
+}
+
+function renderFamilyBsDatePicker() {
+  const selected = appState.familyDobBsPicker || { year: 2083, month: 1, day: 1 };
+  const yearStart = 1970;
+  const yearEnd = 2150;
+  const monthOptions = bsCalendarMonthNames.map((name, index) => `<option value="${index + 1}"${Number(selected.month) === index + 1 ? " selected" : ""}>${index + 1} · ${name}</option>`).join("");
+  const yearOptions = Array.from({ length: yearEnd - yearStart + 1 }, (_, index) => yearStart + index).map((year) => `<option value="${year}"${Number(selected.year) === year ? " selected" : ""}>${year}</option>`).join("");
+  const daysInMonth = bsCalendarDaysInMonth(selected.year, selected.month);
+  const dayOptions = Array.from({ length: daysInMonth || 32 }, (_, index) => index + 1).map((day) => `<option value="${day}"${Number(selected.day) === day ? " selected" : ""}>${String(day).padStart(2, "0")}</option>`).join("");
+  const bsValue = `${selected.year}-${String(selected.month).padStart(2, "0")}-${String(selected.day).padStart(2, "0")}`;
+  const adValue = formatOfficialDobAd(bsValue);
+  return `<div id="familyBsDatePickerModal" class="official-bs-date-picker family-bs-date-picker" role="dialog" aria-label="Family birth date Bikram Sambat picker"><div class="official-bs-date-picker-head"><div><strong><span class="date-converter-logo date-converter-logo--compact" aria-hidden="true">मिति</span> Family DOB · मिति परिवर्तन</strong><small>Pick the date in Bikram Sambat; the AD DOB will update automatically.</small></div><button type="button" class="icon-button" data-action="close-family-bs-date-picker" title="Close date picker" aria-label="Close date picker">×</button></div><div class="official-bs-date-picker-grid"><label>Year<select class="family-bs-date-part" data-part="year">${yearOptions}</select></label><label>Month<select class="family-bs-date-part" data-part="month">${monthOptions}</select></label><label>Day<select class="family-bs-date-part" data-part="day">${dayOptions}</select></label></div>${renderBsDayGrid(selected, "family")}<div class="official-bs-date-picker-preview"><span>मिति परिवर्तन · Converted AD DOB</span><strong>${escapeHtml(adValue || "Select a valid BS date")}</strong></div><div class="official-bs-date-picker-actions"><button type="button" class="ghost-btn" data-action="close-family-bs-date-picker">Cancel</button><button type="button" class="primary-btn" data-action="apply-family-bs-date"${adValue ? "" : " disabled"}>Use converted DOB</button></div></div>`;
+}
+
+function openFamilyBsDatePicker(button) {
+  const form = button?.closest("form");
+  if (!form) return;
+  appState.familyDobPickerTargetForm = form;
+  appState.familyDobBsPicker = familyDobPickerValue(form);
+  document.getElementById("familyBsDatePickerModal")?.remove();
+  document.body.insertAdjacentHTML("beforeend", renderFamilyBsDatePicker());
+  window.lucide?.createIcons?.({ attrs: { "stroke-width": "1.8" } });
+}
+
+function closeFamilyBsDatePicker() {
+  document.getElementById("familyBsDatePickerModal")?.remove();
+  appState.familyDobPickerTargetForm = null;
+}
+
+function updateFamilyBsDatePickerPart(part, value) {
+  const current = { ...(appState.familyDobBsPicker || { year: 2083, month: 1, day: 1 }) };
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) return;
+  current[part] = nextValue;
+  if (part === "year" || part === "month") current.day = Math.min(current.day, bsCalendarDaysInMonth(current.year, current.month) || current.day);
+  appState.familyDobBsPicker = current;
+  document.getElementById("familyBsDatePickerModal")?.remove();
+  document.body.insertAdjacentHTML("beforeend", renderFamilyBsDatePicker());
+  window.lucide?.createIcons?.({ attrs: { "stroke-width": "1.8" } });
+}
+
+function applyFamilyBsDate() {
+  const form = appState.familyDobPickerTargetForm;
+  if (!form) return;
+  const selected = appState.familyDobBsPicker || familyDobPickerValue(form);
+  const bsValue = `${selected.year}-${String(selected.month).padStart(2, "0")}-${String(selected.day).padStart(2, "0")}`;
+  const adValue = formatOfficialDobAd(bsValue);
+  if (!adValue) {
+    showToast("Select a valid Bikram Sambat date.");
+    return;
+  }
+  if (form.elements.dob) form.elements.dob.value = adValue;
+  if (form.elements.dob_bs) form.elements.dob_bs.value = bsValue;
+  closeFamilyBsDatePicker();
+  refreshFamilyAgeBadges();
+  showToast(`Family DOB converted: ${bsValue} BS → ${adValue} AD`);
+}
 
 function currentNepaliFiscalYearStart(date = new Date()) {
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -538,11 +890,133 @@ const defaultAccountTransactions = [
   ["", "16", "12 Dec, 2025, Fri", "7", "18", "Sushmita", "16,000.00", ""],
 ].map((row) => Object.fromEntries(accountTransactionHeaders.map((header, index) => [fieldKey(header), row[index]])));
 
+// Nepal's 77 districts grouped by their current province. The grouped source
+// keeps the district dropdown authentic and gives us a single source of truth
+// for the automatic district → province relationship.
+const nepalDistrictsByProvince = {
+  Koshi: ["Bhojpur", "Dhankuta", "Ilam", "Jhapa", "Khotang", "Morang", "Okhaldhunga", "Panchthar", "Sankhuwasabha", "Solukhumbu", "Sunsari", "Taplejung", "Terhathum", "Udayapur"],
+  Madhesh: ["Bara", "Dhanusha", "Mahottari", "Parsa", "Rautahat", "Saptari", "Sarlahi", "Siraha"],
+  Bagmati: ["Bhaktapur", "Chitwan", "Dhading", "Dolakha", "Kathmandu", "Kavrepalanchok", "Lalitpur", "Makwanpur", "Nuwakot", "Ramechhap", "Rasuwa", "Sindhuli", "Sindhupalchok"],
+  Gandaki: ["Baglung", "Gorkha", "Kaski", "Lamjung", "Manang", "Mustang", "Myagdi", "Nawalpur", "Parbat", "Syangja", "Tanahun"],
+  Lumbini: ["Arghakhanchi", "Banke", "Bardiya", "Dang", "Gulmi", "Kapilvastu", "Palpa", "Nawalparasi (West of Bardaghat Susta)", "Pyuthan", "Rolpa", "Rukum East", "Rupandehi"],
+  Karnali: ["Dailekh", "Dolpa", "Humla", "Jajarkot", "Jumla", "Kalikot", "Mugu", "Rukum West", "Salyan", "Surkhet"],
+  Sudurpashchim: ["Achham", "Baitadi", "Bajhang", "Bajura", "Dadeldhura", "Darchula", "Doti", "Kailali", "Kanchanpur"],
+};
+const nepalDistrictProvinceByName = Object.fromEntries(Object.entries(nepalDistrictsByProvince).flatMap(([province, districts]) => districts.map((district) => [district, province])));
+const nepalDistrictNames = Object.values(nepalDistrictsByProvince).flat();
+const nepalDistrictAliases = {
+  Parasi: "Nawalparasi (West of Bardaghat Susta)",
+  Nawalparasi: "Nawalparasi (West of Bardaghat Susta)",
+  "Nawalparasi West": "Nawalparasi (West of Bardaghat Susta)",
+  "Nawalparasi (West)": "Nawalparasi (West of Bardaghat Susta)",
+  Kapilbastu: "Kapilvastu",
+  "Eastern Rukum": "Rukum East",
+  "Western Rukum": "Rukum West",
+};
+function canonicalNepalDistrictName(value) {
+  const district = String(value || "").trim();
+  return nepalDistrictAliases[district] || district;
+}
+
+const nepalLocalLevelRecordsByDistrict = {};
+nepalLocalLevelRecordsByDistrict["Kailali"] = [["Dhangadhi","S"],["Tikapur","M"],["Ghodaghodi","M"],["Bhajani","M"],["Gauriganga","M"],["Godawari","M"],["Lamkichuha","M"],["Chure","R"],["Janaki","R"],["Kailari","R"],["Joshipur","R"],["Mohanyal","R"],["Bardagoriya","R"]];
+nepalLocalLevelRecordsByDistrict["Bajura"] = [["Badimalika","M"],["Tribeni","M"],["Budhiganga","M"],["Budhinanda","M"],["Gaumul","R"],["Himali","R"],["Jagannath","R"],["Khaptad Chhededaha","R"],["Swami Kartik Khaapar","R"]];
+nepalLocalLevelRecordsByDistrict["Bajhang"] = [["JayaPrithivi","M"],["Bungal","M"],["Masta","R"],["Thalara","R"],["Talkot","R"],["Surma","R"],["SaiPaal","R"],["Durgathali","R"],["Bithadchir","R"],["Kedarseu","R"],["Khaptadchhanna","R"],["Chabispathivera","R"]];
+nepalLocalLevelRecordsByDistrict["Darchula"] = [["Mahakali","M"],["Shailyashikhar","M"],["Lekam","R"],["Naugad","R"],["Byas","R"],["Dunhu","R"],["Marma","R"],["Apihimal","R"],["Malikaarjun","R"]];
+nepalLocalLevelRecordsByDistrict["Baitadi"] = [["Melauli","M"],["Dasharathchanda","M"],["Purchaudi","M"],["Patan","M"],["Sigas","R"],["Shivanath","R"],["Surnaya","R"],["Dilasaini","R"],["Pancheshwar","R"],["Dogadakedar","R"]];
+nepalLocalLevelRecordsByDistrict["Dadeldhura"] = [["Amargadhi","M"],["Parashuram","M"],["Alital","R"],["Ajaymeru","R"],["Bhageshwar","R"],["Nawadurga","R"],["Ganayapdhura","R"]];
+nepalLocalLevelRecordsByDistrict["Doti"] = [["Dipayal Silgadi","M"],["Shikhar","M"],["Sayal","R"],["Adharsha","R"],["Jorayal","R"],["Badikedar","R"],["Purbichauki","R"],["K I Singh","R"],["Bogtan Foodsil","R"]];
+nepalLocalLevelRecordsByDistrict["Achham"] = [["Sanphebagar","M"],["Mangalsen","M"],["Kamalbazar","M"],["Panchadewal Binayak","M"],["Dhakari","R"],["Mellekh","R"],["Chaurpati","R"],["Ramaroshan","R"],["Turmakhad","R"],["Bannigadhi","R"]];
+nepalLocalLevelRecordsByDistrict["Kanchanpur"] = [["Punarbas","M"],["Krishnapur","M"],["Mahakali","M"],["Bedkot","M"],["Belauri","M"],["Bhimdatta","M"],["Shuklaphanta","M"],["Beldandi","R"],["Laljhandi","R"]];
+nepalLocalLevelRecordsByDistrict["Humla"] = [["Simkot","R"],["Namkha","R"],["Chankheli","R"],["Tanjakot","R"],["Sarkegad","R"],["Adanchuli","R"],["Kharpunath","R"]];
+nepalLocalLevelRecordsByDistrict["Dolpa"] = [["Tripurasundari","M"],["Thuli Bheri","M"],["Kaike","R"],["Jagadulla","R"],["Mudkechula","R"],["Dolpo Buddha","R"],["Shey Phoksundo","R"],["Chharka Tangsong","R"]];
+nepalLocalLevelRecordsByDistrict["Mugu"] = [["Chhayanath Rara","M"],["Soru","R"],["Khatyad","R"],["Mugum Karmarong","R"]];
+nepalLocalLevelRecordsByDistrict["Jumla"] = [["Chandannath","M"],["Hima","R"],["Tila","R"],["Sinja","R"],["Guthichaur","R"],["Tatopani","R"],["Patrasi","R"],["Kanakasundari","R"]];
+nepalLocalLevelRecordsByDistrict["Kalikot"] = [["Khandachakra","M"],["Raskot","M"],["Tilagufa","M"],["Mahawai","R"],["Palata","R"],["Naraharinath","R"],["Pachaljharana","R"],["Subha Kalika","R"],["Sanni Tribeni","R"]];
+nepalLocalLevelRecordsByDistrict["Dailekh"] = [["Aathabis","M"],["Dullu","M"],["Chamunda Bindrasaini","M"],["Narayan","M"],["Bhairabi","R"],["Mahabu","R"],["Gurans","R"],["Naumule","R"],["Bhagawatimai","R"],["Thantikandh","R"],["Dungeshwor","R"]];
+nepalLocalLevelRecordsByDistrict["Jajarkot"] = [["Nalagad","M"],["Bheri","M"],["Chhedagad","M"],["Kuse","R"],["Shiwalaya","R"],["Barekot","R"],["Junichande","R"]];
+nepalLocalLevelRecordsByDistrict["Rukum West"] = [["Aathbiskot","M"],["Chaurjahari","M"],["Musikot","M"],["Tribeni","R"],["Sani Bheri","R"],["Banfikot","R"]];
+nepalLocalLevelRecordsByDistrict["Salyan"] = [["Sharada","M"],["Bangad","M"],["Bagchaur","M"],["Kumakh","R"],["Darma","R"],["Kapurkot","R"],["Kalimati","R"],["Tribeni","R"],["Chhatreshwori","R"],["Siddha Kumakh","R"]];
+nepalLocalLevelRecordsByDistrict["Surkhet"] = [["Gurbhakot","M"],["Panchpuri","M"],["Bheriganga","M"],["Lekbeshi","M"],["Birendranagar","M"],["Chaukune","R"],["Simta","R"],["Chingad","R"],["Barahtal","R"]];
+nepalLocalLevelRecordsByDistrict["Dang"] = [["Ghorahi","S"],["Tulsipur","S"],["Lamahi","M"],["Babai","R"],["Gadhawa","R"],["Rapti","R"],["Rajpur","R"],["Dangisharan","R"],["Shantinagar","R"],["Banglachuli","R"]];
+nepalLocalLevelRecordsByDistrict["Rupandehi"] = [["Butwal","S"],["Lumbini Sanskritik","M"],["Devdaha","M"],["Sainamaina","M"],["Siddharthanagar","M"],["Tillotama","M"],["Kanchan","R"],["Siyari","R"],["Rohini","R"],["Gaidahawa","R"],["Omsatiya","R"],["Sudhdhodhan","R"],["Mayadevi","R"],["Marchawari","R"],["Kotahimai","R"],["Sammarimai","R"]];
+nepalLocalLevelRecordsByDistrict["Banke"] = [["Nepalgunj","S"],["Kohalpur","M"],["Khajura","R"],["Janki","R"],["Baijanath","R"],["Duduwa","R"],["Narainapur","R"],["Rapti Sonari","R"]];
+nepalLocalLevelRecordsByDistrict["Rolpa"] = [["Rolpa","M"],["Madi","R"],["Thawang","R"],["Sunchhahari","R"],["Lungri","R"],["Gangadev","R"],["Tribeni","R"],["Pariwartan","R"],["Runtigadi","R"],["Sunil Smriti","R"]];
+nepalLocalLevelRecordsByDistrict["Pyuthan"] = [["Pyuthan","M"],["Sworgadwary","M"],["Ayirabat","R"],["Gaumukhi","R"],["Jhimruk","R"],["Naubahini","R"],["Mandavi","R"],["Mallarani","R"],["Sarumarani","R"]];
+nepalLocalLevelRecordsByDistrict["Gulmi"] = [["Resunga","M"],["Musikot","M"],["Ruru","R"],["Isma","R"],["Madane","R"],["Malika","R"],["Dhurkot","R"],["Chatrakot","R"],["Satyawati","R"],["Chandrakot","R"],["Kaligandaki","R"],["Gulmidarbar","R"]];
+nepalLocalLevelRecordsByDistrict["Arghakhanchi"] = [["Bhumekasthan","M"],["Sitganga","M"],["Sandhikharka","M"],["Panini","R"],["Chhatradev","R"],["Malarani","R"]];
+nepalLocalLevelRecordsByDistrict["Palpa"] = [["Tansen","M"],["Rampur","M"],["Rambha","R"],["Tinau","R"],["Nisdi","R"],["Mathagadhi","R"],["Ribdikot","R"],["Purbakhola","R"],["Bagnaskali","R"],["Rainadevi","R"]];
+nepalLocalLevelRecordsByDistrict["Nawalparasi (West of Bardaghat Susta)"] = [["Bardaghat","M"],["Sunwal","M"],["Ramgram","M"],["Sarawal","R"],["Susta","R"],["Pratappur","R"],["Palhi Nandan","R"]];
+nepalLocalLevelRecordsByDistrict["Kapilvastu"] = [["Shivaraj","M"],["Kapilbastu","M"],["Buddhabhumi","M"],["Maharajgunj","M"],["Banganga","M"],["Krishnanagar","M"],["Yashodhara","R"],["Bijayanagar","R"],["Mayadevi","R"],["Suddhodhan","R"]];
+nepalLocalLevelRecordsByDistrict["Bardiya"] = [["Thakurbaba","M"],["Bansagadhi","M"],["Barbardiya","M"],["Rajapur","M"],["Madhuwan","M"],["Gulariya","M"],["Geruwa","R"],["Badhaiyatal","R"]];
+nepalLocalLevelRecordsByDistrict["Rukum East"] = [["Bhume","R"],["Sisne","R"],["Putha Uttarganga","R"]];
+nepalLocalLevelRecordsByDistrict["Kaski"] = [["Pokhara","G"],["Rupa","R"],["Madi","R"],["Annapurna","R"],["Machhapuchchhre","R"]];
+nepalLocalLevelRecordsByDistrict["Gorkha"] = [["Palungtar","M"],["Gorkha","M"],["Gandaki","R"],["Dharche","R"],["Aarughat","R"],["Ajirkot","R"],["Sahid Lakhan","R"],["Siranchok","R"],["Bhimsenthapa","R"],["Chum Nubri","R"],["Barpak Sulikot","R"]];
+nepalLocalLevelRecordsByDistrict["Myagdi"] = [["Beni","M"],["Mangala","R"],["Malika","R"],["Raghuganga","R"],["Dhaulagiri","R"],["Annapurna","R"]];
+nepalLocalLevelRecordsByDistrict["Lamjung"] = [["Sundarbazar","M"],["Besishahar","M"],["Rainas","M"],["MadhyaNepal","M"],["Dordi","R"],["Dudhpokhari","R"],["Marsyangdi","R"],["Kwholasothar","R"]];
+nepalLocalLevelRecordsByDistrict["Tanahu"] = [["Byas","M"],["Shuklagandaki","M"],["Bhimad","M"],["Bhanu","M"],["Ghiring","R"],["Devghat","R"],["Rhishing","R"],["Myagde","R"],["Bandipur","R"],["Anbukhaireni","R"]];
+nepalLocalLevelRecordsByDistrict["Nawalparari East"] = [["Madhyabindu","M"],["Devchuli","M"],["Gaidakot","M"],["Kawasoti","M"],["Baudeekali","R"],["Bulingtar","R"],["Hupsekot","R"],["Binayee","R"]];
+nepalLocalLevelRecordsByDistrict["Syangja"] = [["Putalibazar","M"],["Bhirkot","M"],["Galyang","M"],["Chapakot","M"],["Waling","M"],["Harinas","R"],["Biruwa","R"],["Aandhikhola","R"],["Phedikhola","R"],["Kaligandagi","R"],["Arjunchaupari","R"]];
+nepalLocalLevelRecordsByDistrict["Parbat"] = [["Kushma","M"],["Phalebas","M"],["Modi","R"],["Painyu","R"],["Jaljala","R"],["Bihadi","R"],["Mahashila","R"]];
+nepalLocalLevelRecordsByDistrict["Baglung"] = [["Jaimuni","M"],["Baglung","M"],["Galkot","M"],["Dhorpatan","M"],["Bareng","R"],["Badigad","R"],["Nisikhola","R"],["Kanthekhola","R"],["Tara Khola","R"],["Taman Khola","R"]];
+nepalLocalLevelRecordsByDistrict["Manang"] = [["Chame","R"],["Narshon","R"],["Narpa Bhumi","R"],["Manang Ingshyang","R"]];
+nepalLocalLevelRecordsByDistrict["Mustang"] = [["Thasang","R"],["Gharapjhong","R"],["Lomanthang","R"],["Lo-Ghekar Damodarkunda","R"],["Waragung Muktikhsetra","R"]];
+nepalLocalLevelRecordsByDistrict["Chitwan"] = [["Bharatpur","G"],["Kalika","M"],["Khairahani","M"],["Madi","M"],["Rapti","M"],["Ratnanagar","M"],["Ichchhyakamana","R"]];
+nepalLocalLevelRecordsByDistrict["Kathmandu"] = [["Kathmandu","G"],["Kirtipur","M"],["Shankharapur","M"],["Nagarjun","M"],["Kageshwori Manahora","M"],["Dakshinkali","M"],["Budhanilakantha","M"],["Tarakeshwor","M"],["Tokha","M"],["Chandragiri","M"],["Gokarneshwor","M"]];
+nepalLocalLevelRecordsByDistrict["Lalitpur"] = [["Lalitpur","G"],["Mahalaxmi","M"],["Godawari","M"],["Bagmati","R"],["Mahankal","R"],["Konjyosom","R"]];
+nepalLocalLevelRecordsByDistrict["Makwanpur"] = [["Hetauda","S"],["Thaha","M"],["Bakaiya","R"],["Kailash","R"],["Manahari","R"],["Bhimphedi","R"],["Bagmati","R"],["Raksirang","R"],["Makawanpurgadhi","R"],["Indrasarowar","R"]];
+nepalLocalLevelRecordsByDistrict["Dolakha"] = [["Jiri","M"],["Bhimeshwor","M"],["Bigu","R"],["Sailung","R"],["Melung","R"],["Baiteshwor","R"],["Tamakoshi","R"],["Gaurishankar","R"],["Kalinchok","R"]];
+nepalLocalLevelRecordsByDistrict["Sindhupalchok"] = [["Chautara SangachokGadhi","M"],["Barhabise","M"],["Melamchi","M"],["Jugal","R"],["Balefi","R"],["Sunkoshi","R"],["Helambu","R"],["Bhotekoshi","R"],["Lisangkhu","R"],["Indrawati","R"],["Tripurasundari","R"],["Panchpokhari Thangpal","R"]];
+nepalLocalLevelRecordsByDistrict["Dhading"] = [["Nilakantha","M"],["Dhunibesi","M"],["Gajuri","R"],["Galchi","R"],["Thakre","R"],["Siddhalek","R"],["Khaniyabash","R"],["Jwalamukhi","R"],["Gangajamuna","R"],["Rubi Valley","R"],["Tripura Sundari","R"],["Netrawati Dabjong","R"],["Benighat Rorang","R"]];
+nepalLocalLevelRecordsByDistrict["Nuwakot"] = [["Belkotgadhi","M"],["Bidur","M"],["Kakani","R"],["Tadi","R"],["Likhu","R"],["Myagang","R"],["Shivapuri","R"],["Kispang","R"],["Suryagadhi","R"],["Tarkeshwar","R"],["Panchakanya","R"],["Dupcheshwar","R"]];
+nepalLocalLevelRecordsByDistrict["Bhaktapur"] = [["Changunarayan","M"],["Suryabinayak","M"],["Bhaktapur","M"],["Madhyapur Thimi","M"]];
+nepalLocalLevelRecordsByDistrict["Kavrepalanchok"] = [["Banepa","M"],["Mandandeupur","M"],["Dhulikhel","M"],["Panauti","M"],["Namobuddha","M"],["Panchkhal","M"],["Roshi","R"],["Temal","R"],["Bhumlu","R"],["Mahabharat","R"],["Bethanchowk","R"],["Khanikhola","R"],["Chaurideurali","R"]];
+nepalLocalLevelRecordsByDistrict["Ramechhap"] = [["Manthali","M"],["Ramechhap","M"],["Sunapati","R"],["Doramba","R"],["Umakunda","R"],["Khadadevi","R"],["Gokulganga","R"],["Likhu Tamakoshi","R"]];
+nepalLocalLevelRecordsByDistrict["Sindhuli"] = [["Dudhouli","M"],["Kamalamai","M"],["Marin","R"],["Phikkal","R"],["Tinpatan","R"],["Sunkoshi","R"],["Golanjor","R"],["Ghanglekh","R"],["Hariharpurgadhi","R"]];
+nepalLocalLevelRecordsByDistrict["Rasuwa"] = [["Kalika","R"],["Naukunda","R"],["Uttargaya","R"],["Gosaikunda","R"],["Amachodingmo","R"]];
+nepalLocalLevelRecordsByDistrict["Parsa"] = [["Birgunj","G"],["Bahudaramai","M"],["Pokhariya","M"],["Parsagadhi","M"],["Thori","R"],["Dhobini","R"],["Chhipaharmai","R"],["Jirabhawani","R"],["Jagarnathpur","R"],["Kalikamai","R"],["Bindabasini","R"],["Pakaha mainpur","R"],["Sakhuwa Prasauni","R"],["Paterwa sugauli","R"]];
+nepalLocalLevelRecordsByDistrict["Bara"] = [["Jitpursimara","S"],["Kalaiya","S"],["Pacharauta","M"],["Nijgadh","M"],["Simraungadh","M"],["Mahagadhimai","M"],["Kolhabi","M"],["Pheta","R"],["Devtal","R"],["Prasauni","R"],["Suwarna","R"],["Baragadhi","R"],["Karaiyamai","R"],["Parwanipur","R"],["Bishrampur","R"],["Adarsh kotwal","R"]];
+nepalLocalLevelRecordsByDistrict["Saptari"] = [["Hanumannagar Kankalini","M"],["Kanchanrup","M"],["Rajbiraj","M"],["Khadak","M"],["Dakneshwori","M"],["Saptakoshi","M"],["Surunga","M"],["Shambhunath","M"],["Bode Barsain","M"],["Rajgadh","R"],["Rupani","R"],["Tirahut","R"],["Mahadeva","R"],["Bishnupur","R"],["Chhinnamasta","R"],["Balan Bihul","R"],["Tilathi Koiladi","R"],["Agnisair Krishna Savaran","R"]];
+nepalLocalLevelRecordsByDistrict["Siraha"] = [["Mirchaiya","M"],["Lahan","M"],["Siraha","M"],["Dhangadhimai","M"],["Kalyanpur","M"],["Karjanha","M"],["Golbazar","M"],["Sukhipur","M"],["Aurahi","R"],["Naraha","R"],["Arnama","R"],["Bhagawanpur","R"],["Nawarajpur","R"],["Bishnupur","R"],["Bariyarpatti","R"],["Laxmipur Patari","R"],["Sakhuwanankarkatti","R"]];
+nepalLocalLevelRecordsByDistrict["Dhanusha"] = [["Janakpurdham","S"],["Mithila Bihari","M"],["Nagarain","M"],["Ganeshman Charnath","M"],["Mithila","M"],["Dhanusadham","M"],["Bideha","M"],["Sabaila","M"],["Kamala","M"],["Hansapur","M"],["Sahidnagar","M"],["Chhireshwarnath","M"],["Aaurahi","R"],["Dhanauji","R"],["Bateshwor","R"],["Janaknandani","R"],["Lakshminiya","R"],["Mukhiyapatti Musarmiya","R"]];
+nepalLocalLevelRecordsByDistrict["Mahottari"] = [["Gaushala","M"],["Ramgopalpur","M"],["Aurahi","M"],["Bardibas","M"],["Bhangaha","M"],["Jaleswor","M"],["Balwa","M"],["Manra Siswa","M"],["Matihani","M"],["Loharpatti","M"],["Pipra","R"],["Sonama","R"],["Samsi","R"],["Ekdanra","R"],["Mahottari","R"]];
+nepalLocalLevelRecordsByDistrict["Sarlahi"] = [["Barahathawa","M"],["Haripur","M"],["Ishworpur","M"],["Lalbandi","M"],["Malangawa","M"],["Kabilasi","M"],["Bagmati","M"],["Hariwan","M"],["Balara","M"],["Haripurwa","M"],["Godaita","M"],["Dhankaul","R"],["Parsa","R"],["Bishnu","R"],["Ramnagar","R"],["Kaudena","R"],["Basbariya","R"],["Chandranagar","R"],["Chakraghatta","R"],["Bramhapuri","R"]];
+nepalLocalLevelRecordsByDistrict["Rautahat"] = [["Katahariya","M"],["Maulapur","M"],["Madhav Narayan","M"],["Gaur","M"],["Gujara","M"],["Garuda","M"],["Ishanath","M"],["Chandrapur","M"],["Dewahi Gonahi","M"],["Brindaban","M"],["Rajpur","M"],["Rajdevi","M"],["Gadhimai","M"],["Phatuwa Bijayapur","M"],["Baudhimai","M"],["Paroha","M"],["Yemunamai","R"],["Durga Bhagwati","R"]];
+nepalLocalLevelRecordsByDistrict["Morang"] = [["Biratnagar","G"],["Letang","M"],["Sunwarshi","M"],["Rangeli","M"],["Pathari Shanishchare","M"],["Uralabari","M"],["Belbari","M"],["Sundarharaicha","M"],["Ratuwamai","M"],["Jahada","R"],["Katahari","R"],["Gramthan","R"],["Dhanpalthan","R"],["Kerabari","R"],["Budhiganga","R"],["Kanepokhari","R"],["Miklajung","R"]];
+nepalLocalLevelRecordsByDistrict["Sunsari"] = [["Dharan","S"],["Itahari","S"],["Ramdhuni","M"],["Barahchhetra","M"],["Duhabi","M"],["Inaruwa","M"],["Gadhi","R"],["Koshi","R"],["Barju","R"],["Harinagar","R"],["Dewanganj","R"],["Bhokraha Narsing","R"]];
+nepalLocalLevelRecordsByDistrict["Taplejung"] = [["Phungling","M"],["Sidingba","R"],["Meringden","R"],["Maiwakhola","R"],["Phaktanglung","R"],["Sirijangha","R"],["Mikwakhola","R"],["Aathrai Tribeni","R"],["Pathivara Yangwarak","R"]];
+nepalLocalLevelRecordsByDistrict["Sankhuwasabha"] = [["Dharmadevi","M"],["Madi","M"],["Panchakhapan","M"],["Chainpur","M"],["Khandbari","M"],["Makalu","R"],["Chichila","R"],["Silichong","R"],["Bhotkhola","R"],["Sabhapokhari","R"]];
+nepalLocalLevelRecordsByDistrict["Solukhumbu"] = [["Solududhakunda","M"],["Sotang","R"],["Mahakulung","R"],["Likhupike","R"],["Nechasalyan","R"],["Thulung Dudhkoshi","R"],["Maapya Dudhkoshi","R"],["Khumbupasanglahmu","R"]];
+nepalLocalLevelRecordsByDistrict["Okhaldhunga"] = [["Siddhicharan","M"],["Likhu","R"],["Molung","R"],["Sunkoshi","R"],["Champadevi","R"],["Chisankhugadhi","R"],["Khijidemba","R"],["Manebhanjyang","R"]];
+nepalLocalLevelRecordsByDistrict["Khotang"] = [["Halesi Tuwachung","M"],["Diktel Rupakot Majhuwagadhi","M"],["Sakela","R"],["Khotehang","R"],["Barahapokhari","R"],["Ainselukhark","R"],["Rawa Besi","R"],["Kepilasagadhi","R"],["Jantedhunga","R"],["Diprung","R"]];
+nepalLocalLevelRecordsByDistrict["Bhojpur"] = [["Shadananda","M"],["Bhojpur","M"],["Arun","R"],["Aamchowk","R"],["Hatuwagadhi","R"],["Pauwadungma","R"],["Temkemaiyung","R"],["Salpasilichho","R"],["Ramprasad","R"]];
+nepalLocalLevelRecordsByDistrict["Dhankuta"] = [["Pakhribas","M"],["Mahalaxmi","M"],["Dhankuta","M"],["Chaubise","R"],["Shahidbhumi","R"],["Sangurigadhi","R"],["Chhathar Jorpati","R"]];
+nepalLocalLevelRecordsByDistrict["Terhathum"] = [["Laligurans","M"],["Myanglung","M"],["Chhathar","R"],["Phedap","R"],["Aathrai","R"],["Menchayam","R"]];
+nepalLocalLevelRecordsByDistrict["Pachthar"] = [["Phidim","M"],["Yangwarak","R"],["Hilihang","R"],["Falelung","R"],["Tumbewa","R"],["Kummayak","R"],["Miklajung","R"],["Falgunanda","R"]];
+nepalLocalLevelRecordsByDistrict["Ilam"] = [["Illam","M"],["Mai","M"],["Deumai","M"],["Suryodaya","M"],["Rong","R"],["Mangsebung","R"],["Chulachuli","R"],["Sandakpur","R"],["Fakphokthum","R"],["Maijogmai","R"]];
+nepalLocalLevelRecordsByDistrict["Jhapa"] = [["Shivasataxi","M"],["Bhadrapur","M"],["Kankai","M"],["Birtamod","M"],["Mechinagar","M"],["Damak","M"],["Arjundhara","M"],["Gauradhaha","M"],["Kamal","R"],["Jhapa","R"],["Kachankawal","R"],["Gauriganj","R"],["Barhadashi","R"],["Haldibari","R"],["Buddhashanti","R"]];
+nepalLocalLevelRecordsByDistrict["Udayapur"] = [["Triyuga","M"],["Katari","M"],["Chaudandigadhi","M"],["Belaka","M"],["Tapli","R"],["Rautamai","R"],["Udayapurgadhi","R"],["Limchungbung","R"]];
+
+nepalLocalLevelRecordsByDistrict.Panchthar ||= nepalLocalLevelRecordsByDistrict.Pachthar || [];
+nepalLocalLevelRecordsByDistrict.Nawalpur ||= nepalLocalLevelRecordsByDistrict["Nawalparari East"] || [];
+nepalLocalLevelRecordsByDistrict.Tanahun ||= nepalLocalLevelRecordsByDistrict.Tanahu || [];
+delete nepalLocalLevelRecordsByDistrict.Pachthar;
+delete nepalLocalLevelRecordsByDistrict["Nawalparari East"];
+delete nepalLocalLevelRecordsByDistrict.Tanahu;
+
+const nepalLocalLevelTypeLabels = { M: "Municipality", R: "Rural Municipality", G: "Metropolitan City", S: "Sub-Metropolitan City" };
+const nepalLocalLevelsByDistrict = Object.fromEntries(Object.entries(nepalLocalLevelRecordsByDistrict).map(([district, records]) => [district, records.map(([name, typeCode]) => ({ name, type: nepalLocalLevelTypeLabels[typeCode] || "Municipality" }))]));
+// Keep the legacy storage key working while exposing the official full district
+// name in the UI and in generated addresses.
+nepalLocalLevelsByDistrict["Nawalparasi (West of Bardaghat Susta)"] ||= nepalLocalLevelsByDistrict.Parasi || [];
+
 const profileSelectOptions = {
   title: ["Elementary School", "Jr. High School", "High School", "Last", "NA"],
   gender: ["Select...", "Male", "Female", "Other"],
   marital_status: ["Select...", "Single", "Married", "Divorced"],
-  palika_type: ["Select...", "Municipality", "Rural Municipality", "Metropolitan", "Sub Metropolitan"],
+  palika_type: ["Select...", "Municipality", "Rural Municipality", "Metropolitan City", "Sub-Metropolitan City"],
+  district: ["Select...", ...nepalDistrictNames],
+  province: ["Select...", ...Object.keys(nepalDistrictsByProvince)],
   status: ["Select...", "Inquiry", "Counseled", "Class Enrollment", "Application In Process", "Offer Received", "Visa Applied", "Visa Granted", "Visa Rejected"],
   type: ["Select...", "Sponsor", "Father", "Mother", "Brother", "Sister", "Husband", "Wife", "Other"],
   f_a_relation: ["Select...", "Daughter", "Son", "Brother", "Sister", "Spouse", "Other"],
@@ -553,12 +1027,125 @@ const profileSelectOptions = {
   category: ["Select...", "Office Use", "Applicant", "Education", "Income", "Family", "Passport"],
 };
 
+// Automation keeps the intake selector as a grouped list rather than a free
+// text field. Keep the historical starting point, then expose the next five
+// years from the current calendar year so older and upcoming intakes can both
+// be selected without changing the underlying profile data contract.
+function officialIntakeOptions() {
+  const startYear = 2020;
+  const endYear = new Date().getFullYear() + 5;
+  const months = ["April", "July", "October"];
+  return ["Select...", ...months.flatMap((month) => (
+    Array.from({ length: endYear - startYear + 1 }, (_, index) => `${month} Intake ${startYear + index}`)
+  ))];
+}
+
+profileSelectOptions.intake = officialIntakeOptions();
+
 const educationDateSelectOptions = {
   started_year: Array.from({ length: 201 }, (_, index) => String(1900 + index)),
   ended_year: Array.from({ length: 201 }, (_, index) => String(1900 + index)),
   started_month: Array.from({ length: 12 }, (_, index) => String(index + 1)),
   ended_month: Array.from({ length: 12 }, (_, index) => String(index + 1)),
 };
+
+function officialLocationOptions(record = appState.activeApplicant) {
+  const official = profileSectionData(record).Official || {};
+  const province = String(official.province || "").trim();
+  const district = canonicalNepalDistrictName(official.district);
+  const districts = province ? (nepalDistrictsByProvince[province] || []) : [];
+  const palikas = district ? (nepalLocalLevelsByDistrict[district] || []) : [];
+  return {
+    province: ["Select...", ...Object.keys(nepalDistrictsByProvince)],
+    district: ["Select...", ...districts],
+    palika: ["Select...", ...palikas.map(({ name }) => name)],
+  };
+}
+
+function officialLinkedApplicantRecords(intake, currentRecord = appState.activeApplicant) {
+  const selectedIntake = String(intake || "").trim() === "Select..." ? "" : String(intake || "").trim();
+  const candidates = [currentRecord, ...(Array.isArray(data.localApplicants) ? data.localApplicants : [])].filter(Boolean);
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    const key = String(candidate.id || candidate.localId || candidate.name || "").trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    const profile = data.profileSections?.[profileRecordKey(candidate)] || {};
+    const candidateIntake = String(profile.Official?.intake || "").trim();
+    return Boolean(selectedIntake) && candidateIntake === selectedIntake;
+  });
+}
+
+function renderOfficialIntakeLinkedData(record, intake) {
+  const selectedIntake = String(intake || "").trim();
+  if (!selectedIntake) return "";
+  const registryRow = (Array.isArray(data.intakes) ? data.intakes : []).find((row) => String(row?.[0] || "").trim() === selectedIntake);
+  const linkedApplicants = officialLinkedApplicantRecords(selectedIntake, record);
+  const [month = "", year = "", dataUses = 0] = registryRow ? registryRow.slice(1) : [];
+  const course = String(profileSectionData(record).Official?.course || "").trim();
+  return `
+    <aside class="official-linked-data-panel" aria-label="Linked data for ${escapeHtml(selectedIntake)}">
+      <div class="official-linked-data-head">
+        <div><span class="official-linked-data-kicker">LINKED DATA</span><strong>${escapeHtml(selectedIntake)}</strong><small>Selection is saved with this applicant's Official section.</small></div>
+        <button type="button" class="icon-button" data-action="close-official-intake-linked-data" title="Close linked data" aria-label="Close linked data">×</button>
+      </div>
+      <div class="official-linked-data-grid">
+        <div><span>Intake registry</span><b>${registryRow ? `${escapeHtml(month)} ${escapeHtml(String(year))}` : "Available for selection"}</b><small>${registryRow ? `${escapeHtml(String(dataUses))} data uses` : "No captured registry row yet"}</small></div>
+        <div><span>Linked applicants</span><b>${linkedApplicants.length}</b><small>${linkedApplicants.length ? "Applicant profile match" : "No saved profile matches"}</small></div>
+        <div><span>Course link</span><b>${escapeHtml(course || "Not selected")}</b><small>Read from this applicant's Official data</small></div>
+      </div>
+      ${linkedApplicants.length ? `<div class="official-linked-applicants"><span>Matched profiles</span>${linkedApplicants.map((item) => `<span class="official-linked-applicant"><i data-lucide="user-round" aria-hidden="true"></i>${escapeHtml(item.name || "Applicant")}</span>`).join("")}</div>` : `<p class="official-linked-data-empty">No other applicant is currently assigned to this intake. Save the Official section after selecting it to create the link.</p>`}
+    </aside>
+  `;
+}
+
+function officialPalikaRecord(district, palika) {
+  const canonicalDistrict = canonicalNepalDistrictName(district);
+  return (nepalLocalLevelsByDistrict[canonicalDistrict] || []).find(({ name }) => name === String(palika || "").trim()) || null;
+}
+
+function formatOfficialAddressSuggestion(official = {}) {
+  const palika = String(official.palika || "").trim();
+  const palikaType = String(official.palika_type || "").trim();
+  const ward = String(official.ward_no || "").trim();
+  const district = canonicalNepalDistrictName(official.district);
+  const province = String(official.province || "").trim().replace(/\s+Province$/i, "");
+  if (!palika || !district || !province) return "";
+  const wardPart = ward ? ` Ward No. ${ward}` : "";
+  const typePart = palikaType ? ` ${palikaType}` : "";
+  return `${palika}${typePart}${wardPart}, ${district}, ${province} Province, Nepal`;
+}
+
+function officialAddressSuggestionFromForm(form) {
+  if (!form) return "";
+  return formatOfficialAddressSuggestion({
+    palika: form.elements?.palika?.value,
+    palika_type: form.elements?.palika_type?.value,
+    ward_no: form.elements?.ward_no?.value,
+    district: form.elements?.district?.value,
+    province: form.elements?.province?.value,
+  });
+}
+
+function syncOfficialAddressFromForm(form) {
+  const input = form?.elements?.complete_address;
+  const button = form?.querySelector('[data-action="use-official-address-suggestion"]');
+  if (!input) return;
+  const suggestion = officialAddressSuggestionFromForm(form);
+  if (suggestion && (!String(input.value || "").trim() || input.dataset.autoAddress === "true")) {
+    input.value = suggestion;
+    input.dataset.autoAddress = "true";
+  } else if (!suggestion && input.dataset.autoAddress === "true") {
+    input.value = "";
+  }
+  if (button) {
+    button.dataset.address = suggestion;
+    button.hidden = !suggestion;
+    button.title = suggestion ? `Use ${suggestion}` : "Complete Province, District, Palika and Ward first";
+  }
+  const hint = form.querySelector(".official-address-suggestion-value");
+  if (hint) hint.textContent = suggestion || "Select location details above to generate a suggestion.";
+}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -1316,20 +1903,8 @@ function renderAddApplicant() {
           <strong>Add New Applicant</strong>
           <button class="icon-button" data-action="close-applicant-modal" title="Close">x</button>
         </div>
-        <form class="automation-entry-form" id="applicantForm">
-          <label><span>${renderFieldLabel("Applicant*")}</span><input name="name" required /></label>
-          <label><span>${renderFieldLabel("First Name*")}</span><input name="firstName" required /></label>
-          <label><span>Middle Name</span><input name="middleName" /></label>
-          <label><span>${renderFieldLabel("Last Name*")}</span><input name="lastName" required /></label>
-          <label><span>${renderFieldLabel("Gender*")}</span><select name="gender" required><option>Select...</option><option>Male</option><option>Female</option><option>Other</option></select></label>
-          <label><span>Name in Japanese</span><input name="nameJapanese" /></label>
-          <label><span>First Name in Japanese</span><input name="firstNameJapanese" /></label>
-          <label><span>Middle Name in Japanese</span><input name="middleNameJapanese" /></label>
-          <label><span>Last Name in Japanese</span><input name="lastNameJapanese" /></label>
-          <label><span>Name in Nepali</span><input name="nameNepali" /></label>
-          <label><span>First Name in Nepali</span><input name="firstNameNepali" /></label>
-          <label><span>Middle Name in Nepali</span><input name="middleNameNepali" /></label>
-          <label><span>Last Name in Nepali</span><input name="lastNameNepali" /></label>
+        <form class="automation-entry-form profile-entry-form add-applicant-home-form" id="applicantForm" data-profile-section="Home">
+          ${profileFormFields.Home.map((label) => renderProfileField(label, "", { translation: homeTranslationFor(label) })).join("")}
           <label><span>Assign to User</span><select name="assignUser"><option>Select user...</option><option>Amrit Sensei</option><option>Sabina Rijal</option><option>Manik Giri</option><option>Apsara Maharjan</option></select></label>
           <div class="modal-actions">
             <button type="button" class="ghost-btn" data-action="close-applicant-modal">Close</button>
@@ -1365,18 +1940,18 @@ function renderApplicantProfile() {
       <div class="profile-window-head">
         <h1>${escapeHtml(name)}</h1>
         <div>
-          <button class="icon-button ${appState.profilePinned ? "active" : ""}" data-action="pin-profile" title="Pin" aria-label="Pin applicant">⌖</button>
-          <button class="icon-button" data-action="profile-more" title="More" aria-label="More applicant actions">⋮</button>
-          <button class="icon-button" data-action="applicant-profile-close" title="Close">×</button>
+          <button class="icon-button ${appState.profilePinned ? "active" : ""}" data-action="pin-profile" title="${appState.profilePinned ? "Unpin applicant" : "Pin applicant"}" aria-label="${appState.profilePinned ? "Unpin applicant" : "Pin applicant"}" aria-pressed="${appState.profilePinned ? "true" : "false"}"><i data-lucide="pin" aria-hidden="true">⌖</i></button>
+          <button class="icon-button" data-action="profile-more" title="More applicant actions" aria-label="More applicant actions"><i data-lucide="ellipsis-vertical" aria-hidden="true">⋮</i></button>
+          <button class="icon-button" data-action="applicant-profile-close" title="Close applicant profile" aria-label="Close applicant profile"><i data-lucide="x" aria-hidden="true">×</i></button>
         </div>
       </div>
       <div class="profile-window-body ${commentsHidden ? "comments-hidden" : ""} ${profileSidebarHidden ? "profile-sidebar-hidden" : ""}" style="--profile-left-width: ${appState.profileLeftWidth}%; --profile-right-width: ${appState.profileCommentsWidth}%">
         ${profileSidebarHidden ? `<aside class="student-profile-left-collapsed">
-          <button class="profile-sidebar-toggle profile-sidebar-show" data-action="show-profile-sidebar" title="Show applicant summary" aria-label="Show applicant summary">›</button>
+          <button class="profile-sidebar-toggle profile-sidebar-show panel-rail-toggle panel-rail-show" data-action="show-profile-sidebar" title="Show applicant summary" aria-label="Show applicant summary"><span aria-hidden="true"></span></button>
         </aside>` : `<aside class="student-profile-left ${genderClass}">
-          <button class="profile-resize-handle profile-rail-menu profile-resize-left" data-profile-resize="left" type="button" title="Drag to resize. Click to hide applicant summary." aria-label="Resize or hide applicant summary panel"><span aria-hidden="true"></span></button>
+          <button class="profile-resize-handle profile-rail-menu panel-rail-toggle panel-rail-hide profile-resize-left" data-profile-resize="left" type="button" title="Hide applicant summary" aria-label="Hide applicant summary panel"><span aria-hidden="true"></span></button>
           <div class="student-card">
-            <div class="student-photo${hasPhoto ? " has-photo" : ""}">${hasPhoto ? `<img src="${escapeHtml(photoSource)}" alt="${escapeHtml(name)}" />` : `<span>${escapeHtml(initials)}</span>`}</div>
+            <div class="student-photo${hasPhoto ? " has-photo" : ""}">${hasPhoto ? `<img src="${escapeHtml(photoSource)}" alt="${escapeHtml(name)}" />` : profilePhotoPlaceholder(gender, name)}</div>
             <button class="student-edit" data-action="edit-profile-photo" title="Edit photo" aria-label="Edit photo"><i data-lucide="pencil" aria-hidden="true">✎</i></button>
             <div class="student-identity">
               <strong>${escapeHtml(name)}</strong>
@@ -1385,11 +1960,12 @@ function renderApplicantProfile() {
             </div>
           </div>
           <div class="status-card">
-            <div class="status-row"><span class="status-row-icon"><i data-lucide="user-round-cog" aria-hidden="true">♟</i></span><strong><small>Last edited by</small>${escapeHtml(latestProfileEditor)}</strong><span class="status-row-actions" aria-label="Last edit details"><i data-lucide="history" aria-hidden="true">◷</i></span></div>
+            <div class="status-row"><span class="status-row-icon"><i data-lucide="user-round-cog" aria-hidden="true">♟</i></span><strong><small>Last edited by</small>${escapeHtml(latestProfileEditor)}</strong><span class="status-row-actions" aria-label="Last edit details"><i data-lucide="history" aria-hidden="true">◷</i><span class="status-history-label">View history</span></span></div>
           </div>
           <div class="profile-task-card">
             <div class="profile-task-card-head"><div class="sidebar-card-heading"><i data-lucide="clipboard-check" aria-hidden="true">☑</i><h3>Remaining Entries</h3></div><span class="profile-task-badge ${applicantTasks.length ? "has-tasks" : "is-clear"}">${applicantTasks.length}</span></div>
-            <p>${applicantTasks.length ? `${applicantTasks.length} field${applicantTasks.length === 1 ? " is" : "s are"} still pending.` : "All tracked fields are complete."}</p>
+            <p>${applicantTasks.length ? "Complete the fields listed below." : "All tracked fields are complete."}</p>
+            ${renderApplicantRemainingEntriesGraph(record)}
             <button class="profile-task-open" data-action="open-applicant-tasks"><i data-lucide="list-checks" aria-hidden="true">☷</i>${applicantTasks.length ? "View remaining tasks" : "View checklist and log"}</button>
           </div>
           ${renderApplicantProgressPentagon(record)}
@@ -1402,13 +1978,13 @@ function renderApplicantProfile() {
           ${renderProfileTabContent(activeTab, activeSubTab, record)}
         </main>
         ${commentsHidden ? `<aside class="student-comments-collapsed" aria-label="Comments sidebar">
-          <button class="comments-rail-toggle" data-action="show-comments" title="Show comments" aria-label="Show comments">${commentToggleIcon()}</button>
+          <button class="comments-rail-toggle panel-rail-toggle panel-rail-show" data-action="show-comments" title="Show comments" aria-label="Show comments"><span aria-hidden="true"></span></button>
           <span class="comments-rail-speech" aria-hidden="true"><span></span><span></span><span></span></span>
           <span class="comments-rail-label" aria-hidden="true">COMMENTS</span>
           <span class="comments-rail-count ${commentCount ? "has-comments" : ""}" aria-label="${commentCount} comment${commentCount === 1 ? "" : "s"}">${commentCount}</span>
           <span class="comments-rail-collapse" aria-hidden="true">‹‹</span>
         </aside>` : `<aside class="student-comments">
-          <button class="profile-resize-handle profile-rail-menu profile-resize-right" data-profile-resize="right" type="button" title="Drag to resize. Click to hide comments." aria-label="Resize or hide comments panel"><span aria-hidden="true"></span></button>
+          <button class="profile-resize-handle profile-rail-menu panel-rail-toggle panel-rail-hide profile-resize-right" data-profile-resize="right" type="button" title="Hide comments" aria-label="Hide comments panel"><span aria-hidden="true"></span></button>
           <textarea class="profile-comment-input" placeholder="Write a comment... @User for mention"></textarea>
           <div class="comment-actions"><button class="comment-post-btn" data-action="post-profile-comment" type="button">Post comment</button><span class="comment-count-label">${commentCount} comment${commentCount === 1 ? "" : "s"}</span></div>
           ${renderProfileComments(comments)}
@@ -1429,16 +2005,235 @@ function profileCommentKey(record = appState.activeApplicant) {
 function profileCommentsFor(record = appState.activeApplicant) {
   const stored = readStoredObject(storageKeys.profileComments);
   const comments = stored[profileCommentKey(record)];
-  return Array.isArray(comments) ? comments : [];
+  if (!Array.isArray(comments)) return [];
+  const normalized = comments.map(normalizeProfileComment);
+  if (commentStoreSignature(normalized) !== commentStoreSignature(comments)) {
+    stored[profileCommentKey(record)] = normalized;
+    storeObject(storageKeys.profileComments, stored);
+    syncCommentStoreToServer(stored);
+  }
+  return normalized;
+}
+
+function commentUserById(id) {
+  return automationCommentUsers.find((user) => user.id === String(id || "")) || null;
+}
+
+function commentUserByName(name) {
+  const wanted = String(name || "").trim().toLowerCase();
+  return automationCommentUsers.find((user) => user.name.toLowerCase() === wanted) || null;
+}
+
+function commentId() {
+  return `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function commentAssignmentId(commentIdValue, userId) {
+  return `${commentIdValue}:${userId}`;
+}
+
+function extractCommentMentions(text) {
+  const source = String(text || "");
+  return automationCommentUsers
+    .filter((user) => user.id !== "user-you")
+    .filter((user) => new RegExp(`@${escapeRegExp(user.name)}(?:\\b|$)`, "i").test(source))
+    .map((user) => ({ id: user.id, name: user.name }));
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeProfileComment(comment = {}) {
+  const text = String(comment.text || "");
+  const legacyAuthor = typeof comment.author === "object" ? comment.author : null;
+  const authorId = String(comment.authorId || legacyAuthor?.id || "user-you");
+  const authorUser = commentUserById(authorId) || commentUserByName(comment.author || legacyAuthor?.name) || automationCommentUsers[0];
+  const mentionList = Array.isArray(comment.mentions) && comment.mentions.length
+    ? comment.mentions.map((mention) => {
+      const user = commentUserById(mention.id) || commentUserByName(mention.name);
+      return user ? { id: user.id, name: user.name } : null;
+    }).filter(Boolean)
+    : extractCommentMentions(text);
+  const existingAssignments = Array.isArray(comment.assignments) ? comment.assignments : [];
+  const assignments = mentionList.map((mention) => {
+    const existing = existingAssignments.find((item) => String(item.userId || item.id) === mention.id) || {};
+    return {
+      id: existing.id || commentAssignmentId(comment.id || "legacy", mention.id),
+      userId: mention.id,
+      userName: mention.name,
+      status: existing.status === "resolved" ? "resolved" : "pending",
+      resolvedAt: existing.resolvedAt || "",
+      resolvedBy: existing.resolvedBy || "",
+    };
+  });
+  return {
+    ...comment,
+    id: String(comment.id || commentId()),
+    authorId,
+    authorName: String(comment.authorName || legacyAuthor?.name || comment.author || authorUser.name || "You"),
+    text,
+    createdAt: comment.createdAt || new Date().toISOString(),
+    mentions: mentionList,
+    assignments,
+    status: assignments.length ? (assignments.every((item) => item.status === "resolved") ? "resolved" : "pending") : "unassigned",
+  };
+}
+
+function allProfileComments() {
+  const stored = readStoredObject(storageKeys.profileComments);
+  return Object.entries(stored).flatMap(([applicantKey, comments]) => (Array.isArray(comments) ? comments : []).map((comment) => ({
+    ...normalizeProfileComment(comment),
+    applicantKey,
+  })));
+}
+
+function relativeCommentTime(value) {
+  const timestamp = new Date(value || 0).getTime();
+  if (!Number.isFinite(timestamp)) return "just now";
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function commentStoreSignature(stored) {
+  try { return JSON.stringify(stored); } catch { return ""; }
+}
+
+let lastCommentStoreSignature = "";
+
+function syncCommentStoreToServer(stored = readStoredObject(storageKeys.profileComments)) {
+  const signature = commentStoreSignature(stored);
+  if (!signature || signature === lastCommentStoreSignature) return;
+  lastCommentStoreSignature = signature;
+  fetch("/api/comment-system", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ comments: stored }),
+  }).catch(() => {
+    // Local persistence remains the source of truth when the optional server is unavailable.
+  });
+}
+
+async function hydrateCommentStoreFromServer() {
+  try {
+    const response = await fetch("/api/comment-system", { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok || !payload.comments || typeof payload.comments !== "object") return;
+    const local = readStoredObject(storageKeys.profileComments);
+    const merged = { ...payload.comments };
+    Object.entries(local).forEach(([key, comments]) => {
+      const byId = new Map((Array.isArray(merged[key]) ? merged[key] : []).map((comment) => [normalizeProfileComment(comment).id, comment]));
+      (Array.isArray(comments) ? comments : []).forEach((comment) => byId.set(normalizeProfileComment(comment).id, comment));
+      merged[key] = [...byId.values()];
+    });
+    storeObject(storageKeys.profileComments, merged);
+    lastCommentStoreSignature = commentStoreSignature(merged);
+    updateNotificationBell();
+    if (location.hash.includes("applicant-profile")) render();
+  } catch {
+    updateNotificationBell();
+  }
+}
+
+function pendingCommentAssignments() {
+  return allProfileComments().flatMap((comment) => comment.assignments
+    .filter((assignment) => assignment.status !== "resolved")
+    .map((assignment) => ({ ...assignment, comment })));
+}
+
+function updateNotificationBell() {
+  const bell = document.querySelector(".notification-bell");
+  if (!bell) return;
+  const pending = pendingCommentAssignments();
+  const badge = bell.querySelector(".notification-badge");
+  if (badge) {
+    badge.textContent = String(pending.length);
+    badge.hidden = pending.length === 0;
+  }
+  const label = pending.length ? `${pending.length} unresolved mention${pending.length === 1 ? "" : "s"}` : "No unresolved mentions";
+  bell.title = label;
+  bell.setAttribute("aria-label", label);
+}
+
+function commentApplicantRecord(comment) {
+  const records = applicantProgressRecords();
+  return records.find((record) => String(record.id || record.localId || "") === String(comment.applicantKey || ""))
+    || records.find((record) => String(record.name || "").trim().toLowerCase() === String(comment.applicantKey || "").trim().toLowerCase())
+    || (appState.activeApplicant && profileCommentKey(appState.activeApplicant) === String(comment.applicantKey || "") ? appState.activeApplicant : null);
+}
+
+function openCommentNotification(button) {
+  const targetCommentId = String(button.dataset.commentId || "");
+  const comment = allProfileComments().find((item) => item.id === targetCommentId);
+  if (!comment) return;
+  const record = commentApplicantRecord(comment);
+  if (!record) {
+    showToast("The applicant linked to this comment is unavailable.");
+    return;
+  }
+  recordRecentApplicant(record);
+  appState.activeApplicant = record;
+  appState.profileWindowOpen = true;
+  appState.commentFocusId = targetCommentId;
+  storeObject(storageKeys.activeApplicant, record);
+  location.hash = "applicant-profile";
+  closeDetailDrawer();
+  render();
+  requestAnimationFrame(() => {
+    document.getElementById(targetCommentId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => {
+      appState.commentFocusId = "";
+      document.getElementById(targetCommentId)?.classList.remove("is-focused");
+    }, 1800);
+  });
 }
 
 function renderProfileComments(comments) {
   if (!comments.length) return `<div class="comment-empty">Comments...</div>`;
   return `<div class="profile-comment-list">${comments.map((comment) => `
-    <article class="profile-comment-item">
-      <div class="profile-comment-meta"><strong>${escapeHtml(comment.author || "You")}</strong><time>${escapeHtml(comment.createdAt ? new Date(comment.createdAt).toLocaleString() : "")}</time></div>
+    <article id="${escapeHtml(comment.id)}" class="profile-comment-item${appState.commentFocusId === comment.id ? " is-focused" : ""}">
+      <div class="profile-comment-meta"><strong>${escapeHtml(comment.authorName || comment.author || "You")}</strong><time title="${escapeHtml(comment.createdAt ? new Date(comment.createdAt).toLocaleString() : "")}">${escapeHtml(relativeCommentTime(comment.createdAt))}</time></div>
       <p>${escapeHtml(comment.text || "")}</p>
+      ${comment.assignments.length ? `<div class="comment-assignments"><span class="comment-assignment-label">Assigned</span>${comment.assignments.map((assignment) => `<span class="comment-assignment ${assignment.status === "resolved" ? "is-resolved" : "is-pending"}"><b>@${escapeHtml(assignment.userName)}</b><small>${assignment.status === "resolved" ? `Resolved by ${escapeHtml(assignment.resolvedBy || assignment.userName)} · ${escapeHtml(relativeCommentTime(assignment.resolvedAt))}` : "Pending"}</small>${assignment.status !== "resolved" ? `<button type="button" class="comment-resolve-btn" data-action="resolve-comment-assignment" data-comment-id="${escapeHtml(comment.id)}" data-user-id="${escapeHtml(assignment.userId)}">Resolve</button>` : ""}</span>`).join("")}</div>` : ""}
+      <div class="comment-status-line"><span class="comment-overall-status ${comment.status === "resolved" ? "is-resolved" : comment.status === "unassigned" ? "is-unassigned" : "is-pending"}">${comment.status === "resolved" ? "Resolved" : comment.status === "unassigned" ? "No assignment" : "Pending"}</span>${comment.mentions.length ? `<span>${comment.mentions.length} user${comment.mentions.length === 1 ? "" : "s"} mentioned</span>` : ""}</div>
     </article>`).join("")}</div>`;
+}
+
+function renderCommentMentionMenu(input) {
+  const container = input?.closest(".student-comments");
+  if (!container) return;
+  container.querySelector(".comment-mention-menu")?.remove();
+  const cursor = input.selectionStart ?? input.value.length;
+  const beforeCursor = String(input.value || "").slice(0, cursor);
+  const match = beforeCursor.match(/(^|\s)@([^\s@]*)$/);
+  if (!match) return;
+  const query = match[2].toLowerCase();
+  const candidates = automationCommentUsers.filter((user) => user.id !== "user-you" && (!query || user.name.toLowerCase().includes(query)));
+  if (!candidates.length) return;
+  const menu = document.createElement("div");
+  menu.className = "comment-mention-menu";
+  menu.setAttribute("role", "listbox");
+  menu.innerHTML = `<small>Tag a user</small>${candidates.map((user) => `<button type="button" data-action="insert-comment-mention" data-mention-id="${escapeHtml(user.id)}"><span class="comment-mention-avatar">${escapeHtml(initialsFor(user.name))}</span><span><b>${escapeHtml(user.name)}</b><em>${escapeHtml(user.role)}</em></span></button>`).join("")}`;
+  container.appendChild(menu);
+}
+
+function insertCommentMention(button) {
+  const input = document.querySelector(".profile-comment-input");
+  const user = commentUserById(button.dataset.mentionId);
+  if (!input || !user) return;
+  const cursor = input.selectionStart ?? input.value.length;
+  const before = String(input.value || "").slice(0, cursor).replace(/(^|\s)@[^\s@]*$/, `$1@${user.name} `);
+  input.value = `${before}${String(input.value || "").slice(cursor)}`;
+  const nextCursor = before.length;
+  input.focus();
+  input.setSelectionRange(nextCursor, nextCursor);
+  input.closest(".student-comments")?.querySelector(".comment-mention-menu")?.remove();
 }
 
 function postProfileComment() {
@@ -1451,10 +2246,60 @@ function postProfileComment() {
   const stored = readStoredObject(storageKeys.profileComments);
   const key = profileCommentKey(appState.activeApplicant);
   const comments = Array.isArray(stored[key]) ? stored[key] : [];
-  stored[key] = [...comments, { author: "You", text, createdAt: new Date().toISOString() }];
+  const mentions = extractCommentMentions(text);
+  const createdAt = new Date().toISOString();
+  const nextCommentId = commentId();
+  const nextComment = normalizeProfileComment({
+    id: nextCommentId,
+    authorId: "user-you",
+    authorName: "You",
+    text,
+    createdAt,
+    mentions,
+    assignments: mentions.map((user) => ({
+      id: commentAssignmentId(nextCommentId, user.id),
+      userId: user.id,
+      userName: user.name,
+      status: "pending",
+      resolvedAt: "",
+      resolvedBy: "",
+    })),
+  });
+  stored[key] = [...comments, nextComment];
   storeObject(storageKeys.profileComments, stored);
+  syncCommentStoreToServer(stored);
+  updateNotificationBell();
   render();
-  showToast("Comment posted.");
+  showToast(mentions.length ? `Comment posted and assigned to ${mentions.map((user) => user.name).join(", ")}.` : "Comment posted.");
+}
+
+function resolveCommentAssignment(button) {
+  const targetCommentId = String(button.dataset.commentId || "");
+  const targetUserId = String(button.dataset.userId || "");
+  const stored = readStoredObject(storageKeys.profileComments);
+  let changed = false;
+  Object.keys(stored).forEach((key) => {
+    stored[key] = (Array.isArray(stored[key]) ? stored[key] : []).map((rawComment) => {
+      const comment = normalizeProfileComment(rawComment);
+      if (comment.id !== targetCommentId) return rawComment;
+      const assignment = comment.assignments.find((item) => item.userId === targetUserId);
+      if (!assignment || assignment.status === "resolved") return comment;
+      const now = new Date().toISOString();
+      assignment.status = "resolved";
+      assignment.resolvedAt = now;
+      assignment.resolvedBy = commentUserById(targetUserId)?.name || targetUserId;
+      comment.status = comment.assignments.every((item) => item.status === "resolved") ? "resolved" : "pending";
+      comment.updatedAt = now;
+      changed = true;
+      return comment;
+    });
+  });
+  if (!changed) return;
+  storeObject(storageKeys.profileComments, stored);
+  syncCommentStoreToServer(stored);
+  updateNotificationBell();
+  render();
+  showToast(`${commentUserById(targetUserId)?.name || "User"} assignment resolved.`);
 }
 
 function documentChecklistMaster() {
@@ -1712,7 +2557,7 @@ function setDocumentWorkflowStatus(documentId, stageId, status) {
 function renderDocumentWorkflow(documentId, entry) {
   const workflow = normalizeDocumentWorkflow(entry);
   return `<div class="document-workflow">
-    <div class="document-workflow-head"><div><strong>Document status workflow</strong><small>Complete each stage to unlock the next stage.</small></div><span><i data-lucide="timer" aria-hidden="true"></i>Live elapsed time</span></div>
+    <div class="document-workflow-head"><div><strong>Stage status selection</strong><small>Use the highlighted stage dropdown to update the active stage. Complete each stage to unlock the next.</small></div><span><i data-lucide="timer" aria-hidden="true"></i>Live elapsed time</span></div>
     <div class="document-workflow-stages">${documentWorkflowStages.map((stage, index) => {
       const state = workflow.stages[stage.id] || {};
       const complete = documentWorkflowStageComplete(stage, state);
@@ -1722,7 +2567,7 @@ function renderDocumentWorkflow(documentId, entry) {
       const selectedLabel = stage.statuses.find((item) => documentWorkflowStatusId(item) === selected) || "Not selected";
       return `<section class="document-workflow-stage ${complete ? "is-complete" : ""} ${locked && !complete ? "is-locked" : ""}">
         <div class="document-workflow-stage-head"><div><span>${escapeHtml(stage.label)}</span><strong>${complete ? "Complete" : locked ? "Locked" : "Active"}</strong></div><i data-lucide="${complete ? "check-circle-2" : locked ? "lock-keyhole" : "circle-dot"}" aria-hidden="true"></i></div>
-        <label class="document-workflow-status-field"><span>Status</span><select class="document-workflow-status" data-document-id="${escapeHtml(documentId)}" data-stage-id="${escapeHtml(stage.id)}" ${locked ? "disabled" : ""} aria-label="${escapeHtml(stage.label)} status"><option value="" ${selected ? "" : "selected"} disabled>Select status</option>${stage.statuses.map((status) => { const value = documentWorkflowStatusId(status); return `<option value="${value}" ${selected === value ? "selected" : ""}>${escapeHtml(status)}</option>`; }).join("")}</select></label>
+        <label class="document-workflow-status-field"><span>Stage status</span><select class="document-workflow-status" data-document-id="${escapeHtml(documentId)}" data-stage-id="${escapeHtml(stage.id)}" ${locked ? "disabled" : ""} aria-label="${escapeHtml(stage.label)} stage selection"><option value="" ${selected ? "" : "selected"} disabled>Select stage status</option>${stage.statuses.map((status) => { const value = documentWorkflowStatusId(status); return `<option value="${value}" ${selected === value ? "selected" : ""}>${escapeHtml(status)}</option>`; }).join("")}</select></label>
         <div class="document-workflow-current"><b class="${documentStatusNeedsAttention(selectedLabel) ? "is-alert" : ""}">${escapeHtml(selectedLabel)}</b><span ${state.selectedAt ? `data-workflow-time data-started-at="${escapeHtml(state.selectedAt)}"` : ""}>${documentWorkflowElapsedLabel(state.selectedAt)}</span>${state.selectedBy ? `<em>· ${escapeHtml(state.selectedBy)}</em>` : ""}</div>
         ${renderDocumentWorkflowSkippedTags(stage, state)}
         ${stage.id === "stage-3" && selected === "sent-for-correction" && !complete ? `<button type="button" class="ghost-btn document-workflow-repeat" data-action="repeat-document-workflow-status" data-document-id="${escapeHtml(documentId)}" data-stage-id="${escapeHtml(stage.id)}" data-status="${escapeHtml(selected)}"><i data-lucide="rotate-cw" aria-hidden="true"></i>Repeat Sent for Correction</button>` : ""}
@@ -1754,14 +2599,14 @@ function renderDocumentWorkflowSummary(documentId, entry) {
     previousStageComplete = complete;
     return nodes;
   });
-  return `<div class="document-workflow-summary" aria-label="Document stage status summary"><div class="document-workflow-flow" aria-label="Document workflow flow"><div class="document-workflow-flow-head"><strong>Workflow flow</strong><span>Updates live from the status dropdowns below</span></div><div class="document-workflow-flow-track">${flowNodes.join('<i class="document-workflow-flow-arrow" data-lucide="chevron-right" aria-hidden="true"></i>')}</div></div>${documentWorkflowStages.map((stage, index) => {
+  return `<div class="document-workflow-summary" aria-label="Document stage status summary"><div class="document-workflow-flow" aria-label="Document workflow status preview"><div class="document-workflow-flow-head"><strong>Workflow status preview</strong><span>Read-only progress preview · use the stage controls below</span></div><div class="document-workflow-flow-track">${flowNodes.join('<i class="document-workflow-flow-arrow" data-lucide="chevron-right" aria-hidden="true"></i>')}</div></div>${documentWorkflowStages.map((stage, index) => {
     const state = workflow.stages[stage.id] || {};
     const complete = documentWorkflowStageComplete(stage, state);
     const previousComplete = index === 0 || documentWorkflowStageComplete(documentWorkflowStages[index - 1], workflow.stages[documentWorkflowStages[index - 1].id]);
     const locked = !previousComplete || complete;
     const selected = state.status || "";
     const label = stage.statuses.find((item) => documentWorkflowStatusId(item) === state.status) || "Not selected";
-    return `<span class="document-workflow-summary-item ${complete ? "is-complete" : locked ? "is-locked" : "is-active"} ${documentStatusNeedsAttention(label) ? "is-alert" : ""}"><b>${escapeHtml(stage.label)}</b><select class="document-workflow-status document-workflow-summary-select" data-document-id="${escapeHtml(documentId)}" data-stage-id="${escapeHtml(stage.id)}" ${locked ? "disabled" : ""} aria-label="${escapeHtml(stage.label)} status"><option value="" ${selected ? "" : "selected"} disabled>Select status</option>${stage.statuses.map((status) => { const value = documentWorkflowStatusId(status); return `<option value="${value}" ${selected === value ? "selected" : ""}>${escapeHtml(status)}</option>`; }).join("")}</select><em class="${documentStatusNeedsAttention(label) ? "is-alert" : ""}">${escapeHtml(label)}</em><small>${state.selectedAt ? `${escapeHtml(documentWorkflowDateTime(state.selectedAt))}${state.selectedBy ? ` · ${escapeHtml(state.selectedBy)}` : ""}` : "Not selected yet"}</small>${renderDocumentWorkflowSkippedTags(stage, state)}</span>`;
+    return `<span class="document-workflow-summary-item ${complete ? "is-complete" : locked ? "is-locked" : "is-active"} ${documentStatusNeedsAttention(label) ? "is-alert" : ""}"><b>${escapeHtml(stage.label)}</b><span class="document-workflow-stage-action-label">${complete ? "Completed stage" : locked ? "Stage locked" : "Update stage"}</span><select class="document-workflow-status document-workflow-summary-select" data-document-id="${escapeHtml(documentId)}" data-stage-id="${escapeHtml(stage.id)}" ${locked ? "disabled" : ""} aria-label="${escapeHtml(stage.label)} stage selection"><option value="" ${selected ? "" : "selected"} disabled>Select stage status</option>${stage.statuses.map((status) => { const value = documentWorkflowStatusId(status); return `<option value="${value}" ${selected === value ? "selected" : ""}>${escapeHtml(status)}</option>`; }).join("")}</select><em class="${documentStatusNeedsAttention(label) ? "is-alert" : ""}">${escapeHtml(label)}</em><small>${state.selectedAt ? `${escapeHtml(documentWorkflowDateTime(state.selectedAt))}${state.selectedBy ? ` · ${state.selectedBy}` : ""}` : "Not selected yet"}</small>${renderDocumentWorkflowSkippedTags(stage, state)}</span>`;
   }).join("")}</div>`;
 }
 
@@ -1902,6 +2747,14 @@ function renderApplicantProgressPentagon(record) {
   return `<section class="profile-pentagon-card" aria-label="Applicant checklist progress"><div class="profile-pentagon-head"><div><span>CHECKLIST PROGRESS</span><strong>5-point workflow</strong></div><b>${progress.overall}%</b></div><div class="profile-pentagon-chart"><svg viewBox="0 0 200 172" role="img" aria-label="${progress.overall}% checklist workflow progress"><polygon class="profile-pentagon-grid" points="${outer}"></polygon><polygon class="profile-pentagon-grid profile-pentagon-grid-mid" points="${middle}"></polygon>${progress.axes.map((_, index) => `<line class="profile-pentagon-axis" x1="${center.x}" y1="${center.y}" x2="${point(index).split(",")[0]}" y2="${point(index).split(",")[1]}"></line>`).join("")}<polygon class="profile-pentagon-value" points="${values}"></polygon>${progress.axes.map((axis, index) => `<circle class="profile-pentagon-dot" cx="${point(index, Math.max(axis.value, 5) / 100).split(",")[0]}" cy="${point(index, Math.max(axis.value, 5) / 100).split(",")[1]}" r="2.5"></circle>`).join("")}${labels}</svg></div><div class="profile-pentagon-legend">${progress.axes.map((axis) => `<span><b>${axis.value}%</b>${escapeHtml(axis.label)}</span>`).join("")}</div></section>`;
 }
 
+function renderApplicantRemainingEntriesGraph(record) {
+  const progress = applicantProgressForRecord(record);
+  return `<div class="profile-remaining-graph ${progress.remaining ? "has-pending" : "is-complete"}" role="img" aria-label="${progress.percent}% of applicant entries complete; ${progress.remaining} remaining">
+    <div class="profile-remaining-bar-wrap"><div class="profile-remaining-bar" aria-hidden="true"><span style="width:${progress.percent}%"></span></div></div>
+    <div class="profile-remaining-graph-copy"><strong>${progress.percent}%</strong><small>complete</small></div>
+  </div>`;
+}
+
 function renderApplicantChecklistSidebar(record) {
   const counts = documentChecklistCounts(record);
   return `<section class="profile-checklist-card">
@@ -1945,8 +2798,9 @@ function renderDocumentChecklistCard(document, record) {
       <label class="document-checklist-wide-field"><span>Mistake report / correction notes</span><textarea data-checklist-entry-value="${document.id}" data-checklist-key="correctionNotes" placeholder="Record issues and corrections">${escapeHtml(entry.correctionNotes || entry.mistakeReport || "")}</textarea></label>
       <div class="document-checklist-card-actions"><button type="button" class="primary-btn" data-action="save-checklist-entry" data-document-id="${document.id}"><i data-lucide="save" aria-hidden="true"></i>Save document</button><button type="button" class="ghost-btn" data-action="show-checklist-history" data-document-id="${document.id}"><i data-lucide="history" aria-hidden="true"></i>Review history (${(entry.history || []).length})</button></div>
     </div>` : "";
+  const undoRequirement = entry.requirement !== "undecided" ? `<button type="button" class="ghost-btn checklist-undo-requirement" data-action="set-checklist-requirement" data-document-id="${document.id}" data-requirement="undecided" title="Undo requirement selection" aria-label="Undo requirement selection for ${escapeHtml(document.name)}"><i data-lucide="undo-2" aria-hidden="true"></i><span>Undo selection</span></button>` : "";
   return `<article class="document-checklist-card ${expanded ? "is-expanded" : ""} status-${escapeHtml(entry.status || "not-started")}" data-document-card="${document.id}">
-    <div class="document-checklist-card-head"><div class="document-checklist-title"><span class="document-checklist-icon"><i data-lucide="file-check-2" aria-hidden="true"></i></span><div><h3>${escapeHtml(document.name)}</h3><small>${escapeHtml(document.category)}${document.note ? ` · ${escapeHtml(document.note)}` : ""}</small>${entry.requirement === "required" ? renderDocumentLastStatus(entry, receiptMode) : ""}</div></div><div class="document-checklist-card-tools">${entry.requirement === "required" && receiptMode ? renderDocumentReceiptControl(document, entry) : ""}<span class="document-checklist-status-badge ${entry.requirement === "required" && documentStatusNeedsAttention(displayStatus) ? "is-alert" : ""}">${escapeHtml(entry.requirement === "required" ? displayStatus : checklistRequirementLabel(entry.requirement))}</span><button type="button" class="icon-button" data-action="toggle-checklist-card" data-document-id="${document.id}" aria-label="${expanded ? "Collapse" : "Expand"} ${escapeHtml(document.name)}">${expanded ? "⌃" : "⌄"}</button></div></div>
+    <div class="document-checklist-card-head"><div class="document-checklist-title"><span class="document-checklist-icon"><i data-lucide="file-check-2" aria-hidden="true"></i></span><div><h3>${escapeHtml(document.name)}</h3><small>${escapeHtml(document.category)}${document.note ? ` · ${escapeHtml(document.note)}` : ""}</small>${entry.requirement === "required" ? renderDocumentLastStatus(entry, receiptMode) : ""}</div></div><div class="document-checklist-card-tools">${entry.requirement === "required" && receiptMode ? renderDocumentReceiptControl(document, entry) : ""}<span class="document-checklist-status-badge ${entry.requirement === "required" && documentStatusNeedsAttention(displayStatus) ? "is-alert" : ""}">${escapeHtml(entry.requirement === "required" ? displayStatus : checklistRequirementLabel(entry.requirement))}</span>${undoRequirement}<button type="button" class="icon-button" data-action="toggle-checklist-card" data-document-id="${document.id}" aria-label="${expanded ? "Collapse" : "Expand"} ${escapeHtml(document.name)}">${expanded ? "⌃" : "⌄"}</button></div></div>
     ${document.subitems?.length ? `<div class="document-checklist-subitems">${document.subitems.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
     ${entry.requirement === "required" ? (receiptMode ? renderDocumentReceiptSummary(entry) : renderDocumentWorkflowSummary(document.id, entry)) : ""}
     ${entry.requirement === "required" ? details : `<div class="document-checklist-decision-actions"><button type="button" class="primary-btn checklist-require-btn" data-action="set-checklist-requirement" data-document-id="${document.id}" data-requirement="required"><i data-lucide="circle-check" aria-hidden="true"></i>Required</button>${entry.requirement === "undecided" ? `<button type="button" class="ghost-btn checklist-not-required-btn" data-action="set-checklist-requirement" data-document-id="${document.id}" data-requirement="not-required">Not Required</button>` : ""}</div>`}
@@ -1960,8 +2814,11 @@ function renderDocumentChecklistWorkspace(record) {
   const documents = documentChecklistFilteredDocuments(record);
   const grouped = categories.filter((category) => category !== "All" && documents.some((document) => document.category === category));
   const list = grouped.map((category) => `<section class="document-checklist-group"><div class="document-checklist-group-head"><h3>${escapeHtml(category)}</h3><span>${documents.filter((document) => document.category === category).length} shown</span></div>${documents.filter((document) => document.category === category).map((document) => renderDocumentChecklistCard(document, record)).join("")}</section>`).join("") || `<div class="document-checklist-empty">No documents match this view. Use the tabs above to review Required, Not Required, Undecided or Hidden documents.</div>`;
+  const checklistFullscreen = Boolean(appState.documentChecklistFullscreen);
+  const checklistViewIcon = checklistFullscreen ? "minimize-2" : "maximize-2";
+  const checklistViewLabel = checklistFullscreen ? "Exit full-screen workspace" : "Open full-screen workspace";
   return `<section class="profile-workspace document-checklist-workspace ${appState.documentChecklistFullscreen ? "is-fullscreen" : ""}">
-    <div class="document-checklist-header"><div><span class="document-checklist-kicker">APPLICANT-SPECIFIC DOCUMENT CONTROL</span><h2>Document Checklist</h2><p>${escapeHtml(master.instructions || "")}</p></div><div class="document-checklist-header-actions"><button class="ghost-btn" data-action="print-document-checklist" data-report="summary"><i data-lucide="printer" aria-hidden="true"></i>A4 Summary</button><button class="ghost-btn" data-action="print-document-checklist" data-report="detail"><i data-lucide="file-text" aria-hidden="true"></i>Detailed Report</button><button class="icon-button" data-action="toggle-checklist-fullscreen" title="Full-screen workspace" aria-label="Full-screen workspace"><i data-lucide="maximize-2" aria-hidden="true"></i></button></div></div>
+    <div class="document-checklist-header"><div><span class="document-checklist-kicker">APPLICANT-SPECIFIC DOCUMENT CONTROL</span><h2>Document Checklist</h2><p>${escapeHtml(master.instructions || "")}</p></div><div class="document-checklist-header-actions"><button class="ghost-btn" data-action="print-document-checklist" data-report="summary"><i data-lucide="printer" aria-hidden="true"></i>A4 Summary</button><button class="ghost-btn" data-action="print-document-checklist" data-report="detail"><i data-lucide="file-text" aria-hidden="true"></i>Detailed Report</button><button class="icon-button" data-action="toggle-checklist-fullscreen" title="${checklistViewLabel}" aria-label="${checklistViewLabel}"><i data-lucide="${checklistViewIcon}" aria-hidden="true"></i></button></div></div>
     <div class="document-checklist-metrics"><div><b>${documentChecklistDocuments().length}</b><span>Master documents</span></div><div class="is-required"><b>${counts.required}</b><span>Required</span></div><div class="is-undecided"><b>${counts.undecided}</b><span>Undecided</span></div><div class="is-verified"><b>${counts.verified}</b><span>Verified</span></div></div>
     <div class="document-checklist-toolbar"><div class="document-checklist-view-tabs"><button class="${appState.documentChecklistView === "master" ? "active" : ""}" data-action="set-checklist-view" data-view="master">Master <b>${documentChecklistDocuments().length}</b></button><button class="${appState.documentChecklistView === "required" ? "active" : ""}" data-action="set-checklist-view" data-view="required">Required <b>${counts.required}</b></button><button class="${appState.documentChecklistView === "not-required" ? "active" : ""}" data-action="set-checklist-view" data-view="not-required">Not Required <b>${counts.notRequired}</b></button><button class="${appState.documentChecklistView === "undecided" ? "active" : ""}" data-action="set-checklist-view" data-view="undecided">Undecided <b>${counts.undecided}</b></button><button class="${appState.documentChecklistView === "hidden" ? "active" : ""}" data-action="set-checklist-view" data-view="hidden">Hidden <b>${counts.hidden}</b></button></div><div class="document-checklist-filters"><input class="document-checklist-search" placeholder="Search documents..." value="${escapeHtml(appState.documentChecklistSearch)}" /><select class="document-checklist-category"><option value="All">All categories</option>${categories.slice(1).map((category) => `<option value="${escapeHtml(category)}" ${appState.documentChecklistCategory === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}</select><button class="ghost-btn" data-action="toggle-checklist-details">${Object.keys(appState.documentChecklistExpanded).length ? "Collapse all" : "Expand all"}</button></div></div>
     <div class="document-checklist-note"><i data-lucide="shield-check" aria-hidden="true"></i><span>Master checklist is preserved per applicant. Changing a requirement keeps prior status and review history.</span></div>
@@ -2062,6 +2919,7 @@ function renderProfileTabContent(tab, subTab, record) {
   if (tab === "Templating") return renderApplicantTemplating(record);
   if (tab === "Income") return renderIncomeSection(record);
   if (tab === "Document Check") return renderDocumentChecklistWorkspace(record);
+  if (tab === "Application") return renderApplicationSection(record);
   if (profileGridSections[tab]) return renderProfileGridSection(tab, record);
   return renderProfileFormSection(tab, profileFormFields[tab] || [], record);
 }
@@ -2156,6 +3014,30 @@ const detailOverviewGridHeaders = {
   Family: ["#", "Type", "Name", "Gender", "A-F Relation", "F-A Relation", "Contact", "Occupation", "Dob", "Work Name", "Work Address", "Work Tel No", "Citizenship No"],
 };
 
+// Application has three independent Automation tables. Keep their rows
+// separate so each table can be added to and edited without affecting the
+// other Application fields or tables.
+const applicationGridConfigs = {
+  japanese_course: {
+    title: "Japanese Course",
+    storageKey: "japanese_course_rows",
+    headers: ["SNo", "Title", "Started Date", "Ended Date", "Course Hour", "Studied Hour", "Grammar marks", "Listening marks", "Reading marks"],
+    addLabel: "Add New Japanese Course",
+  },
+  work_experience: {
+    title: "Work Experience",
+    storageKey: "work_experience_rows",
+    headers: ["SNo", "Title", "Company Name", "Post", "Address", "Started Date", "Ended Date", "Contact"],
+    addLabel: "Add New Work Experience",
+  },
+  japanese_exam: {
+    title: "Japanese Exam",
+    storageKey: "japanese_exam_rows",
+    headers: ["SNo", "Title", "Exam Date", "Score", "Exam Level"],
+    addLabel: "Add New Japanese Exam",
+  },
+};
+
 function detailOverviewValue(value) {
   if (value === 0 || value === "0") return "0";
   const normalized = String(value ?? "").trim();
@@ -2228,6 +3110,142 @@ function renderDetailOverviewGrid(grid) {
   `;
 }
 
+function renderApplicationSection(record) {
+  const saved = profileSectionData(record).Application || {};
+  return `
+    <section class="profile-workspace application-workspace">
+      <div class="profile-section-head"><h2>Application</h2></div>
+      <form class="profile-entry-form" data-profile-section="Application">
+        ${profileFormFields.Application.map((label) => renderProfileField(label, saved[fieldKey(label)] ?? profileInitialValue("Application", label, record))).join("")}
+      </form>
+      <div class="profile-section-actions">
+        <button class="primary-btn" data-action="save-profile-form" data-section="Application">Save</button>
+      </div>
+    </section>
+    ${Object.entries(applicationGridConfigs).map(([gridKey, config]) => renderApplicationGrid(gridKey, config, saved)).join("")}
+  `;
+}
+
+function renderApplicationGrid(gridKey, config, application = {}) {
+  const rows = Array.isArray(application[config.storageKey]) ? application[config.storageKey] : [];
+  return `
+    <section class="profile-workspace application-record-workspace" data-application-grid="${escapeHtml(gridKey)}">
+      <div class="profile-section-head application-record-head">
+        <h3>${escapeHtml(config.title)}</h3>
+        <button class="primary-btn" data-action="add-application-row" data-grid-key="${escapeHtml(gridKey)}">${escapeHtml(config.addLabel)}</button>
+      </div>
+      <form class="profile-entry-form compact application-record-form" data-profile-grid-section="${escapeHtml(gridKey)}">
+        ${config.headers.map((label) => renderProfileGridField("Application", label)).join("")}
+      </form>
+      <div class="file-history-tools application-record-tools">
+        <input class="filter-input application-grid-filter" data-grid-key="${escapeHtml(gridKey)}" placeholder="Filter ${escapeHtml(config.title)}..." />
+      </div>
+      <table class="profile-file-table application-record-table">
+        <thead><tr>${config.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}<th class="profile-row-actions-head">Actions</th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map((row, rowIndex) => `<tr>${config.headers.map((header) => `<td>${escapeHtml(profileRowValue(row, header, config.headers) || "-")}</td>`).join("")}<td class="profile-row-actions"><button type="button" class="ghost-btn profile-row-edit-btn" data-action="edit-application-row" data-grid-key="${escapeHtml(gridKey)}" data-row-index="${rowIndex}" aria-label="Edit ${escapeHtml(config.title)} row ${rowIndex + 1}">✎ Edit</button></td></tr>`).join("") : `<tr><td colspan="${config.headers.length + 1}">No data</td></tr>`}
+        </tbody>
+        <tfoot><tr><td colspan="${config.headers.length + 1}">#${rows.length}</td></tr></tfoot>
+      </table>
+    </section>
+  `;
+}
+
+function addApplicationRow(gridKey) {
+  const config = applicationGridConfigs[gridKey];
+  const form = document.querySelector(`form[data-profile-grid-section="${cssEscape(gridKey)}"]`);
+  if (!config || !form) return;
+  const formData = new FormData(form);
+  const row = Object.fromEntries(config.headers.map((header) => [fieldKey(header), String(formData.get(fieldKey(header)) || "").trim()]));
+  const application = profileSectionData()["Application"] || (profileSectionData()["Application"] = {});
+  const rows = Array.isArray(application[config.storageKey]) ? application[config.storageKey] : [];
+  if (!Object.values(row).some(Boolean)) {
+    showToast(`Fill at least one ${config.title} field first.`);
+    return;
+  }
+  if (!row.sno) row.sno = String(rows.length + 1);
+  application[config.storageKey] = [row, ...rows];
+  storeObject(storageKeys.profileSections, data.profileSections);
+  appendProfileLog(appState.activeApplicant, {
+    type: "new",
+    tab: "Application",
+    dataModule: config.title,
+    changes: [{ field: `${config.title} row`, oldValue: "", newValue: summarizeProfileRow(row) }],
+  });
+  form.reset();
+  render();
+  showToast(`${config.title} row added locally.`);
+}
+
+function openApplicationRowEditor(gridKey, rowIndex) {
+  const config = applicationGridConfigs[gridKey];
+  const record = appState.activeApplicant;
+  const application = profileSectionData(record).Application || {};
+  const rows = Array.isArray(application[config?.storageKey]) ? application[config.storageKey] : [];
+  const row = rows[rowIndex];
+  if (!config || !record || !row) {
+    showToast("This Application row could not be opened for editing.");
+    return;
+  }
+  let drawer = document.getElementById("detailDrawer");
+  if (!drawer) {
+    drawer = document.createElement("aside");
+    drawer.id = "detailDrawer";
+    drawer.className = "detail-drawer";
+    document.body.appendChild(drawer);
+  }
+  drawer.dataset.mode = "application-row-editor";
+  drawer.innerHTML = `
+    <div class="drawer-head">
+      <div><strong>Edit ${escapeHtml(config.title)} record</strong><small>Update the saved row and keep the changes locally</small></div>
+      <button class="icon-button" data-action="close-drawer" title="Close" aria-label="Close">×</button>
+    </div>
+    <form class="profile-entry-form compact application-row-editor-form" data-application-row-editor="true" data-grid-key="${escapeHtml(gridKey)}" data-row-index="${rowIndex}">
+      ${config.headers.map((label) => renderProfileGridField("Application", label, profileRowValue(row, label, config.headers))).join("")}
+      <div class="form-actions">
+        <button type="button" class="ghost-btn" data-action="close-drawer">Cancel</button>
+        <button type="button" class="primary-btn" data-action="save-application-row" data-grid-key="${escapeHtml(gridKey)}" data-row-index="${rowIndex}">Save changes</button>
+      </div>
+    </form>
+  `;
+  drawer.classList.add("open");
+  drawer.querySelector("input, textarea, .profile-select-trigger")?.focus();
+}
+
+function saveApplicationRow(gridKey, rowIndex) {
+  const config = applicationGridConfigs[gridKey];
+  const record = appState.activeApplicant;
+  const form = document.querySelector('form[data-application-row-editor="true"]');
+  const application = profileSectionData(record).Application || {};
+  const rows = Array.isArray(application[config?.storageKey]) ? application[config.storageKey] : [];
+  const index = Number(rowIndex ?? form?.dataset.rowIndex);
+  const row = rows[index];
+  if (!config || !record || !form || !row || !Number.isInteger(index) || index < 0) {
+    showToast("Choose a saved Application row before saving.");
+    return false;
+  }
+  const formData = new FormData(form);
+  const changes = [];
+  config.headers.forEach((header) => {
+    const key = fieldKey(header);
+    const previousValue = String(profileRowValue(row, header, config.headers) || "").trim();
+    const nextValue = String(formData.get(key) || "").trim();
+    if (previousValue !== nextValue) changes.push({ field: header, oldValue: previousValue, newValue: nextValue });
+    row[key] = nextValue;
+  });
+  if (!changes.length) {
+    closeDetailDrawer();
+    showToast(`${config.title} row is already up to date.`);
+    return true;
+  }
+  storeObject(storageKeys.profileSections, data.profileSections);
+  appendProfileLog(record, { type: "changed", tab: "Application", dataModule: config.title, changes });
+  closeDetailDrawer();
+  render();
+  showToast(`${config.title} row updated locally.`);
+  return true;
+}
+
 function renderAccountRecordsSubTab(subTab, record) {
   if (subTab === "Account Information") return renderAccountInformation(record);
   if (subTab === "Reference Number Setup") return renderReferenceNumberSetup(record);
@@ -2294,6 +3312,44 @@ function familyMemberAddress(row) {
 function familyRowIsAccountHolder(row) {
   const value = row?.account_holder ?? row?.accountHolder ?? row?.is_account_holder ?? row?.account_holder_tag;
   return value === true || /^(?:true|yes|1|\$|account holder)$/i.test(String(value ?? "").trim());
+}
+
+function familyRowType(row) {
+  return familyRowValue(row, "TYPE", "Type", "type", "F-A Relation", "f_a_relation");
+}
+
+function familyRowSno(row) {
+  return familyRowValue(row, "SNO (AUTO)", "SNo", "SNO", "#", "sno_auto", "sno");
+}
+
+function nextFamilySno(record = appState.activeApplicant) {
+  const rows = familyRowsForAccountImport(record);
+  const numbers = rows
+    .map((row) => Number.parseInt(familyRowSno(row), 10))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return String(Math.max(rows.length, ...numbers, 0) + 1);
+}
+
+// Sponsor is the initial account-holder suggestion, but a user-selected $
+// marker always wins. This keeps the relationship useful without locking the
+// user to Sponsor forever.
+function applyFamilyAccountHolderRules(record = appState.activeApplicant) {
+  const rows = familyRowsForAccountImport(record);
+  if (!rows.length) return -1;
+  const selectedIndex = rows.findIndex((row) => familyRowIsAccountHolder(row));
+  const source = String(rows[selectedIndex]?.account_holder_source || "").toLowerCase();
+  // Existing $ selections without a source are treated as manual for backward
+  // compatibility; only an explicit type-driven selection may be replaced.
+  const hasManualSelection = selectedIndex >= 0 && source !== "type";
+  if (hasManualSelection) return selectedIndex;
+
+  const sponsorIndex = rows.findIndex((row) => /\bsponsor\b/i.test(familyRowType(row)));
+  rows.forEach((row, index) => {
+    row.account_holder = sponsorIndex >= 0 && index === sponsorIndex ? "true" : "false";
+    if (sponsorIndex >= 0 && index === sponsorIndex) row.account_holder_source = "type";
+    else if (String(row.account_holder_source || "").toLowerCase() === "type") delete row.account_holder_source;
+  });
+  return sponsorIndex;
 }
 
 function familyAccountHolderIndex(record = appState.activeApplicant) {
@@ -2371,7 +3427,7 @@ function renderAccountInfoField(field, value = "", options = {}) {
     ? `<select name="${escapeHtml(name)}" ${required}${disabled ? " disabled" : ""}>${field.options.map((option) => `<option${String(option) === String(value) ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`
     : `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" ${required} ${locked ? `readonly aria-readonly="true" class="profile-locked-field" title="${escapeHtml(autoImport || "Automatically imported")}"` : ""} ${isDateField ? `data-action="open-account-calendar" data-field="${escapeHtml(name)}" readonly` : ""} />`;
   const action = field.action
-    ? `<button type="button" class="ghost-btn account-inline-action ${isDateField ? "date-picker-trigger" : ""}" data-action="${escapeHtml(isDateField ? "open-account-calendar" : field.action)}" data-field="${escapeHtml(name)}" title="${isDateField ? "Open calendar" : escapeHtml(field.actionLabel)}"${(locked || options.savedInformationLocked) ? " disabled" : ""}>${isDateField ? '<span class="calendar-trigger-glyph" aria-hidden="true">🗓️</span>' : isFamilyImport ? `${escapeHtml(field.actionLabel)}` : escapeHtml(field.actionLabel)}</button>`
+    ? `<button type="button" class="ghost-btn account-inline-action ${isDateField ? "date-picker-trigger" : ""}" data-action="${escapeHtml(isDateField ? "open-account-calendar" : field.action)}" data-field="${escapeHtml(name)}" title="${isDateField ? "Open calendar" : escapeHtml(field.actionLabel)}"${(locked || options.savedInformationLocked) ? " disabled" : ""}>${isDateField ? '<span class="calendar-trigger-glyph" aria-hidden="true"><i data-lucide="calendar-days" aria-hidden="true"></i></span>' : isFamilyImport ? `${escapeHtml(field.actionLabel)}` : escapeHtml(field.actionLabel)}</button>`
     : "";
   const hint = autoImport ? `<small class="auto-import-hint" title="${escapeHtml(autoImport)}"><span class="auto-import-icon" aria-hidden="true">↥</span>${escapeHtml(autoImport)}</small>` : "";
   const classes = [action ? "with-inline-action" : "", autoImport ? "auto-import-field" : ""].filter(Boolean).join(" ");
@@ -2441,7 +3497,7 @@ function renderTransactionRecords(record) {
   const rows = Array.isArray(section.rows) && section.rows.length ? section.rows : defaultAccountTransactions;
   const visibleHeaders = accountVisibleColumns(section, "transaction", accountTransactionHeaders);
   const pageSize = Number(appState.accountTransactionPageSize) || 10;
-  const filteredRows = accountFilteredRows(rows);
+  const filteredRows = filterTransactionRowsByYear(accountFilteredRows(rows), appState.accountTransactionYearFilter);
   const pageRows = filteredRows.slice(0, pageSize);
   return `
     <section class="profile-workspace account-records-workspace">
@@ -2453,6 +3509,7 @@ function renderTransactionRecords(record) {
           <button class="icon-button" data-action="account-overflow-menu" title="More" aria-label="More transaction actions"><i data-lucide="ellipsis-vertical" aria-hidden="true">⋮</i></button>
         </div>
         <div class="account-record-toolbar-secondary">
+          ${renderTransactionYearFilter(rows)}
           <label class="account-record-search"><i data-lucide="search" aria-hidden="true">⌕</i><input class="filter-input account-record-filter" placeholder="Search to import..." aria-label="Search to import" /></label>
           <button class="icon-button" data-action="account-column-chooser" data-scope="transaction" title="Column Chooser" aria-label="Column Chooser"><i data-lucide="columns-3" aria-hidden="true">▤</i></button>
         </div>
@@ -2499,13 +3556,23 @@ function renderAccountTransactionPanel(panel, section) {
 
 function renderSampleRecordsPanel(section) {
   const settings = { ...defaultSampleRecordSettings(), ...(section.sample_settings || {}) };
-  const rows = Array.isArray(section.sample_preview) ? section.sample_preview : [];
-  const summary = sampleRecordSummary(rows);
+  const allRows = Array.isArray(section.sample_preview) ? section.sample_preview : [];
+  const rows = filterTransactionRowsByYear(allRows, appState.accountTransactionYearFilter);
+  const summary = sampleRecordSummary(allRows, settings);
   const figuresHidden = section.sample_figures_hidden === true;
   const selectedStyle = selectedAccountOutputStyle(appState.activeApplicant);
   const outputStyle = selectedStyle || "Not selected";
   const outputEntry = selectedStyle ? findTemplateEntry(selectedStyle) : null;
-  const outputValidation = validateAccountOutput(appState.activeApplicant, selectedStyle, rows, outputEntry);
+  const outputValidation = validateAccountOutput(
+    appState.activeApplicant,
+    selectedStyle,
+    allRows,
+    outputEntry,
+    {
+      accountInfo: sampleAccountInfo(accountSectionData(appState.activeApplicant, "Account Information"), settings),
+      transactionSection: section,
+    },
+  );
   return `
     <div class="account-action-panel sample-records-panel">
       <div class="account-action-head sample-records-head">
@@ -2517,7 +3584,7 @@ function renderSampleRecordsPanel(section) {
         ${renderSampleFigureField("Credit Amount Figures (CSV) *", "credit_amount_figures", settings.credit_amount_figures, figuresHidden)}
         ${renderSampleFigureField("Debit Amount Figures (CSV) *", "debit_amount_figures", settings.debit_amount_figures, figuresHidden)}
         <div class="sample-number-group full-span">
-          <div class="sample-number-group-head"><strong>Generation controls</strong><span>Use separate entry counts and duration gaps for each side.</span></div>
+          <div class="sample-number-group-head"><strong>Generation controls</strong><span>Starts with a 1,000 credit on the opening date, runs through the next 3 calendar years, and increases transaction density in each later year.</span></div>
           <div class="sample-number-grid">
             ${renderSampleNumberField("Credit Entries *", "credit_entries", settings.credit_entries)}
             ${renderSampleNumberField("Debit Entries *", "debit_entries", settings.debit_entries)}
@@ -2544,8 +3611,8 @@ function renderSampleRecordsPanel(section) {
         ].map(([label, value], index) => `<div class="${index < 5 ? "is-priority" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
       </div>
       <div class="sample-preview-heading">
-        <div><span class="sample-records-kicker">CALCULATED OUTPUT</span><strong>Sample Generated Records</strong><small>Internal preview only · ${rows.length} records</small></div>
-        <span class="sample-record-count">${rows.length}</span>
+        <div><span class="sample-records-kicker">CALCULATED OUTPUT</span><strong>Sample Generated Records</strong><small>Internal preview only · ${rows.length === allRows.length ? `${allRows.length} records` : `${rows.length} shown · ${allRows.length} total`}</small></div>
+        <div class="sample-preview-tools"><span class="sample-record-count">${rows.length}</span>${renderTransactionYearFilter(allRows, "sample")}</div>
       </div>
       ${renderAccountOutputValidation(outputValidation)}
       <div class="account-style-output-card">
@@ -3039,7 +4106,7 @@ function priorPeriodMeta(section, rows = []) {
     .map((row) => ({ row, date: parseAccountDate(row.date) }))
     .filter((item) => item.date)
     .sort((a, b) => a.date - b.date);
-  const currentStart = currentRows[0]?.date || parseAccountDate(accountInfo.opening_date) || new Date(2025, 7, 20);
+  const currentStart = currentRows[0]?.date || parseAccountDate(accountInfo.opening_date) || defaultAccountOpeningDate(record);
   const currentEnd = currentRows.at(-1)?.date || parseAccountDate(accountInfo.closing_balance_date) || new Date(2026, 7, 19);
   const durationDays = Math.max(1, Math.round((currentEnd - currentStart) / 86400000) + 1);
   const priorStart = new Date(currentStart.getTime() - durationDays * 86400000);
@@ -3059,7 +4126,7 @@ function generatePriorPeriodTransactions(section) {
     .map((row) => ({ ...row, dateObject: parseAccountDate(row.date) }))
     .filter((row) => row.dateObject)
     .sort((a, b) => a.dateObject - b.dateObject);
-  const currentStart = sourceRows[0]?.dateObject || parseAccountDate(accountInfo.opening_date) || new Date(2025, 7, 20);
+  const currentStart = sourceRows[0]?.dateObject || parseAccountDate(accountInfo.opening_date) || defaultAccountOpeningDate(record);
   const currentEnd = sourceRows.at(-1)?.dateObject || parseAccountDate(accountInfo.closing_balance_date) || new Date(2026, 7, 19);
   const durationDays = Math.max(1, Math.round((currentEnd - currentStart) / 86400000) + 1);
   const priorStart = new Date(currentStart.getTime() - durationDays * 86400000);
@@ -3193,6 +4260,51 @@ function renderAccountColumnChooser(scope, headers, visibleHeaders) {
 
 function renderProfileFormSection(section, fields, record, options = {}) {
   const saved = profileSectionData(record)[section] || {};
+  const officialOptions = section === "Official" ? officialLocationOptions(record) : null;
+  const fieldMarkup = fields.map((label) => {
+    const name = fieldKey(label);
+    const fieldValue = saved[name] ?? profileInitialValue(section, label, record);
+    const fieldOptions = {
+      translation: section === "Home" ? homeTranslationFor(label) : null,
+    };
+    if (section === "Official" && officialOptions && ["province", "district", "palika"].includes(name)) {
+      fieldOptions.selectOptions = officialOptions[name];
+      fieldOptions.disabled = (name === "district" && !String(saved.province || "").trim()) || (name === "palika" && !String(saved.district || "").trim());
+      if (["district", "palika"].includes(name)) {
+        fieldOptions.locationField = true;
+        fieldOptions.manualLocation = saved[`__manual_${name}`] === true || String(saved[`__manual_${name}`] || "").toLowerCase() === "true";
+      }
+    }
+    if (section === "Official" && name === "palika_type") {
+      fieldOptions.locked = true;
+      fieldOptions.autoImport = "Auto-updated from selected Palika";
+    }
+    if (section === "Official" && name === "complete_address") {
+      const officialForAddress = {
+        ...saved,
+        province: saved.province ?? profileInitialValue(section, "Province", record),
+        district: saved.district ?? profileInitialValue(section, "District", record),
+        palika: saved.palika ?? profileInitialValue(section, "Palika", record),
+        palika_type: saved.palika_type ?? profileInitialValue(section, "Palika Type", record),
+        ward_no: saved.ward_no ?? profileInitialValue(section, "Ward No", record),
+      };
+      fieldOptions.addressSuggestion = formatOfficialAddressSuggestion(officialForAddress);
+    }
+    if (section === "Official" && name === "dob_bs") fieldOptions.bsDatePicker = true;
+    if (section === "Official" && name === "dob") {
+      fieldOptions.locked = true;
+      fieldOptions.autoImport = "Auto-converted from DOB BS";
+    }
+    if (section === "Official" && name === "intake") {
+      fieldOptions.linkedData = true;
+    }
+    return renderProfileField(label, fieldValue, fieldOptions);
+  }).join("");
+  const selectedIntakeRaw = section === "Official" ? String(saved.intake ?? profileInitialValue(section, "Intake", record) ?? "").trim() : "";
+  const selectedIntake = selectedIntakeRaw === "Select..." ? "" : selectedIntakeRaw;
+  const linkedDataPanel = section === "Official" && appState.officialLinkedDataOpen && appState.officialLinkedDataIntake === selectedIntake
+    ? renderOfficialIntakeLinkedData(record, selectedIntake)
+    : "";
   return `
     <section class="profile-workspace">
       <div class="profile-section-head">
@@ -3200,8 +4312,10 @@ function renderProfileFormSection(section, fields, record, options = {}) {
       </div>
       ${options.notes ? `<p class="profile-note">This section is used to generate internal reference numbers for record linking and document formatting only.</p>` : ""}
       <form class="profile-entry-form" data-profile-section="${escapeHtml(section)}">
-        ${fields.map((label) => renderProfileField(label, saved[fieldKey(label)] ?? profileInitialValue(section, label, record), { translation: section === "Home" ? homeTranslationFor(label) : null })).join("")}
+        ${fieldMarkup}
       </form>
+      ${section === "Official" ? `<div class="official-linked-data-slot" data-official-linked-data-slot>${linkedDataPanel}</div>` : ""}
+      ${section === "Official" ? renderOfficialBsDatePicker(record) : ""}
       <div class="profile-section-actions">
         <button class="primary-btn" data-action="save-profile-form" data-section="${escapeHtml(section)}">Save</button>
         ${options.action ? `<button class="primary-btn" data-action="save-profile-form" data-section="${escapeHtml(section)}">${escapeHtml(options.action)}</button>` : ""}
@@ -3385,21 +4499,31 @@ function renderProfileField(label, value = "", options = {}) {
   const name = fieldKey(label);
   const isLong = !options.singleLine && /remarks|address|notes/i.test(label);
   const required = label.includes("*") ? "required" : "";
-  const selectOptions = profileSelectOptions[name] || educationDateSelectOptions[name];
+  const selectOptions = options.selectOptions || profileSelectOptions[name] || educationDateSelectOptions[name];
   const isEducationTitle = name === "title";
   const isEducationDate = Object.prototype.hasOwnProperty.call(educationDateSelectOptions, name);
   const selectPlaceholder = isEducationTitle ? "Title" : String(label).replace(/\s*\*+\s*$/, "");
   const locked = options.locked === true;
   const isDatePicker = options.datePicker === true;
-  const input = locked
+  const isBsDatePicker = options.bsDatePicker === true;
+  const officialLocationInput = options.locationField
+    ? `<div class="official-location-control" data-official-location-control data-field="${escapeHtml(name)}">${options.manualLocation
+      ? `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(selectPlaceholder)}" ${required} data-official-location-manual-field="${escapeHtml(name)}" autocomplete="off" /><button type="button" class="ghost-btn official-location-mode-toggle" data-action="toggle-official-location-mode" data-field="${escapeHtml(name)}" data-mode="list" title="Use the ${escapeHtml(label.replace(/\s*\*+\s*$/, ""))} suggestion list"><i data-lucide="list-filter" aria-hidden="true"></i><span>Use list</span></button>`
+      : `${renderProfileSelect(name, label, value, selectOptions, required, selectPlaceholder, options.disabled === true)}<button type="button" class="ghost-btn official-location-mode-toggle" data-action="toggle-official-location-mode" data-field="${escapeHtml(name)}" data-mode="manual" title="Edit the ${escapeHtml(label.replace(/\s*\*+\s*$/, ""))} manually"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit manually</span></button>`}</div>`
+    : "";
+  const input = officialLocationInput || (locked
     ? `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} readonly aria-readonly="true" class="profile-locked-field" title="${escapeHtml(options.autoImport || "Automatically imported")}" />`
+    : isBsDatePicker
+    ? `<div class="profile-date-control official-bs-date-input"><input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} readonly data-action="open-official-bs-date-picker" title="Select DOB in Bikram Sambat" /><button type="button" class="ghost-btn date-picker-trigger" data-action="open-official-bs-date-picker" title="Open BS date picker" aria-label="Open BS date picker"><span class="calendar-trigger-glyph" aria-hidden="true"><i data-lucide="calendar-days"></i></span></button></div>`
     : isDatePicker
-    ? `<div class="profile-date-control"><input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} readonly data-action="open-income-calendar" data-field="${escapeHtml(name)}" /><button type="button" class="ghost-btn date-picker-trigger" data-action="open-income-calendar" data-field="${escapeHtml(name)}" title="Open calendar" aria-label="Open calendar"><span class="calendar-trigger-glyph" aria-hidden="true">🗓️</span></button></div>`
+    ? `<div class="profile-date-control"><input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} readonly data-action="open-income-calendar" data-field="${escapeHtml(name)}" /><button type="button" class="ghost-btn date-picker-trigger" data-action="open-income-calendar" data-field="${escapeHtml(name)}" title="Open calendar" aria-label="Open calendar"><span class="calendar-trigger-glyph" aria-hidden="true"><i data-lucide="calendar-days" aria-hidden="true"></i></span></button></div>`
+    : options.addressSuggestion
+    ? renderOfficialCompleteAddressField(value, options.addressSuggestion, required)
     : selectOptions
-    ? renderProfileSelect(name, label, value, selectOptions, required, isEducationTitle || isEducationDate ? selectPlaceholder : "")
+    ? renderProfileSelect(name, label, value, selectOptions, required, isEducationTitle || isEducationDate ? selectPlaceholder : "", options.disabled === true)
     : isLong
     ? `<textarea name="${escapeHtml(name)}" ${required}>${escapeHtml(value)}</textarea>`
-    : `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} />`;
+    : `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder=" " ${required} />`);
   const translation = options.translation;
   const translatedInput = translation && !selectOptions && !isLong
     ? `<div class="translated-field-control">${input}<button type="button" class="translate-field-btn" data-action="open-translation" data-source-field="${escapeHtml(translation.source)}" data-target-field="${escapeHtml(name)}" data-language="${escapeHtml(translation.language)}" title="Translate text to ${escapeHtml(translation.language)}" aria-label="Translate text to ${escapeHtml(translation.language)}">文</button></div>`
@@ -3407,29 +4531,49 @@ function renderProfileField(label, value = "", options = {}) {
   const autoImport = options.autoImport
     ? `<small class="auto-import-hint" title="${escapeHtml(options.autoImport)}"><span class="auto-import-icon" aria-hidden="true">↥</span>${escapeHtml(options.autoImport)}</small>`
     : "";
-  return `<label class="${options.autoImport ? "auto-import-field" : ""}"><span class="profile-field-label">${renderFieldLabel(label)}${autoImport}</span>${translatedInput}</label>`;
+  const linkedValueRaw = String(value || "").trim();
+  const linkedValue = linkedValueRaw === "Select..." ? "" : linkedValueRaw;
+  const linkedData = options.linkedData
+    ? `<button type="button" class="profile-linked-data-btn" data-action="view-official-intake-linked-data" data-intake="${escapeHtml(linkedValue)}" title="${escapeHtml(linkedValue ? `View data linked to ${linkedValue}` : "Select an intake to view linked data")}"${linkedValue ? "" : " hidden"}><i data-lucide="link-2" aria-hidden="true"></i><span>View linked data</span><b>${officialLinkedApplicantRecords(linkedValue).length}</b></button>`
+    : "";
+  return `<label class="${options.autoImport ? "auto-import-field" : ""}"><span class="profile-field-label">${renderFieldLabel(label)}${autoImport}${linkedData}</span>${translatedInput}</label>`;
 }
 
-function renderProfileSelect(name, label, value, options, required, placeholder = "") {
+function renderOfficialCompleteAddressField(value = "", suggestion = "", required = "") {
+  const currentValue = String(value || suggestion || "");
+  const autoAddress = Boolean(suggestion && (!value || String(value).trim() === String(suggestion).trim()));
+  return `<div class="official-address-control"><textarea name="complete_address" ${required} data-auto-address="${autoAddress ? "true" : "false"}">${escapeHtml(currentValue)}</textarea><div class="official-address-suggestion-row"><span class="official-address-suggestion-label"><i data-lucide="sparkles" aria-hidden="true">✦</i>Suggested from location</span><button type="button" class="official-address-suggestion" data-action="use-official-address-suggestion" data-address="${escapeHtml(suggestion)}" title="${escapeHtml(suggestion ? `Use ${suggestion}` : "Complete Province, District, Palika and Ward first")}"${suggestion ? "" : " hidden"}>Use suggested address</button></div><small class="official-address-suggestion-value">${escapeHtml(suggestion || "Select location details above to generate a suggestion.")}</small></div>`;
+}
+
+function profileSelectOptionMarkup(name, options, selectedValue, fiscalMarkers = null) {
+  return options.map((option) => {
+    const isCurrent = fiscalMarkers?.current === String(option);
+    const isPrior = fiscalMarkers?.prior === String(option);
+    const classes = ["profile-select-option", String(option) === selectedValue ? "is-selected" : "", isCurrent ? "is-current-fiscal" : "", isPrior ? "is-prior-fiscal" : ""].filter(Boolean).join(" ");
+    const marker = isCurrent ? " · Current" : isPrior ? " · Two years back" : "";
+    return `<button type="button" class="${classes}" data-action="select-profile-option" data-field="${escapeHtml(name)}" data-value="${escapeHtml(option)}" role="option" aria-selected="${String(option) === selectedValue ? "true" : "false"}" data-option-label="${escapeHtml(option).toLowerCase()}">${escapeHtml(option)}${marker ? `<small class="fiscal-option-marker">${escapeHtml(marker)}</small>` : ""}</button>`;
+  }).join("");
+}
+
+function renderProfileSelect(name, label, value, options, required, placeholder = "", disabled = false) {
   const firstOption = options[0] || "";
   const selectedValue = String(value || (placeholder ? "" : firstOption));
   const displayValue = selectedValue || placeholder || firstOption;
   const fiscalMarkers = ["year1", "year2", "year3"].includes(name) ? fiscalYearMarkers() : null;
+  const isEducationDate = Object.prototype.hasOwnProperty.call(educationDateSelectOptions, name);
   return `
     <div class="profile-select" data-profile-select>
       <input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(selectedValue)}" ${required} />
-      <button type="button" class="profile-select-trigger" data-action="toggle-profile-select" data-field="${escapeHtml(name)}" aria-haspopup="listbox" aria-expanded="false">
+      <button type="button" class="profile-select-trigger" data-action="toggle-profile-select" data-field="${escapeHtml(name)}" aria-haspopup="listbox" aria-expanded="false" aria-disabled="${disabled ? "true" : "false"}"${disabled ? " disabled" : ""}>
         <span class="profile-select-value${selectedValue ? "" : " is-placeholder"}">${escapeHtml(displayValue)}</span>
         <span class="profile-select-chevron" aria-hidden="true">⌄</span>
       </button>
       <div class="profile-select-menu" role="listbox" aria-label="${escapeHtml(label.replace(/\s*\*+\s*$/, ""))}" hidden>
-        ${options.map((option) => {
-          const isCurrent = fiscalMarkers?.current === String(option);
-          const isPrior = fiscalMarkers?.prior === String(option);
-          const classes = ["profile-select-option", String(option) === selectedValue ? "is-selected" : "", isCurrent ? "is-current-fiscal" : "", isPrior ? "is-prior-fiscal" : ""].filter(Boolean).join(" ");
-          const marker = isCurrent ? " · Current" : isPrior ? " · Two years back" : "";
-          return `<button type="button" class="${classes}" data-action="select-profile-option" data-field="${escapeHtml(name)}" data-value="${escapeHtml(option)}" role="option" aria-selected="${String(option) === selectedValue ? "true" : "false"}">${escapeHtml(option)}${marker ? `<small class="fiscal-option-marker">${escapeHtml(marker)}</small>` : ""}</button>`;
-        }).join("")}
+        ${isEducationDate ? `<div class="profile-select-search-wrap"><span aria-hidden="true">⌕</span><input class="profile-select-search" type="search" autocomplete="off" placeholder="Type to search ${escapeHtml(label.replace(/\s*\*+\s*$/, "").toLowerCase())}" aria-label="Search ${escapeHtml(label.replace(/\s*\*+\s*$/, ""))}" /></div>` : ""}
+        <div class="profile-select-options">
+        ${profileSelectOptionMarkup(name, options, selectedValue, fiscalMarkers)}
+        </div>
+        ${isEducationDate ? `<div class="profile-select-empty" hidden>No matching options</div>` : ""}
       </div>
     </div>
   `;
@@ -3452,6 +4596,148 @@ function toggleProfileSelect(button) {
   root.classList.toggle("is-open", willOpen);
   root.querySelector(".profile-select-menu")?.toggleAttribute("hidden", !willOpen);
   button.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) {
+    const search = root.querySelector(".profile-select-search");
+    if (search) {
+      search.value = "";
+      root.querySelectorAll(".profile-select-option").forEach((option) => { option.hidden = false; });
+      root.querySelector(".profile-select-empty")?.setAttribute("hidden", "");
+      search.focus();
+    }
+  }
+}
+
+function updateProfileSelectOptions(form, name, options, value = "") {
+  const hidden = form?.elements?.[name];
+  const root = hidden?.closest?.("[data-profile-select]");
+  if (!hidden || !root) return;
+  const normalizedOptions = Array.isArray(options) && options.length ? options : ["Select..."];
+  const selectedValue = normalizedOptions.includes(value) ? value : "";
+  hidden.value = selectedValue;
+  hidden.dataset.optionIndex = String(Math.max(0, normalizedOptions.indexOf(selectedValue)));
+  const display = root.querySelector(".profile-select-value");
+  if (display) {
+    display.textContent = selectedValue || normalizedOptions[0];
+    display.classList.toggle("is-placeholder", !selectedValue);
+  }
+  const markers = ["year1", "year2", "year3"].includes(name) ? fiscalYearMarkers() : null;
+  const optionsContainer = root.querySelector(".profile-select-options");
+  if (optionsContainer) optionsContainer.innerHTML = profileSelectOptionMarkup(name, normalizedOptions, selectedValue, markers);
+  const trigger = root.querySelector(".profile-select-trigger");
+  const disabled = normalizedOptions.length <= 1;
+  if (trigger) {
+    trigger.disabled = disabled;
+    trigger.setAttribute("aria-disabled", String(disabled));
+    if (disabled) {
+      root.classList.remove("is-open");
+      root.querySelector(".profile-select-menu")?.setAttribute("hidden", "");
+    }
+  }
+}
+
+function setProfileFieldValue(form, name, value) {
+  const input = form?.elements?.[name];
+  if (!input) return;
+  input.value = value || "";
+  if (input.type === "hidden") {
+    const root = input.closest("[data-profile-select]");
+    const display = root?.querySelector(".profile-select-value");
+    if (display) {
+      display.textContent = value || "Select...";
+      display.classList.toggle("is-placeholder", !value);
+    }
+    root?.querySelectorAll(".profile-select-option").forEach((option) => {
+      const selected = option.dataset.value === String(value || "");
+      option.classList.toggle("is-selected", selected);
+      option.setAttribute("aria-selected", String(selected));
+    });
+  }
+}
+
+function syncOfficialLocationDependencies(form, changedName, value) {
+  if (!form) return;
+  if (changedName === "province") {
+    const districts = nepalDistrictsByProvince[String(value || "").trim()] || [];
+    updateProfileSelectOptions(form, "district", ["Select...", ...districts], "");
+    updateProfileSelectOptions(form, "palika", ["Select..."], "");
+    setProfileFieldValue(form, "palika_type", "");
+  } else if (changedName === "district") {
+    const palikas = nepalLocalLevelsByDistrict[canonicalNepalDistrictName(value)] || [];
+    updateProfileSelectOptions(form, "palika", ["Select...", ...palikas.map(({ name }) => name)], "");
+    setProfileFieldValue(form, "palika_type", "");
+  } else if (changedName === "palika") {
+    const selected = officialPalikaRecord(form.elements?.district?.value, value);
+    setProfileFieldValue(form, "palika_type", selected?.type || "");
+  }
+  syncOfficialAddressFromForm(form);
+}
+
+function syncOfficialIntakeLinkedDataTrigger(form, value) {
+  const trigger = form?.querySelector('.profile-linked-data-btn[data-action="view-official-intake-linked-data"]');
+  if (!trigger) return;
+  const intake = String(value || "").trim();
+  trigger.dataset.intake = intake;
+  trigger.hidden = !intake;
+  trigger.title = intake ? `View data linked to ${intake}` : "Select an intake to view linked data";
+  const count = trigger.querySelector("b");
+  if (count) count.textContent = String(officialLinkedApplicantRecords(intake).length);
+}
+
+function officialLocationOptionsFromForm(form, name) {
+  if (name === "district") {
+    const province = String(form?.elements?.province?.value || "").trim();
+    return ["Select...", ...(nepalDistrictsByProvince[province] || [])];
+  }
+  if (name === "palika") {
+    const district = canonicalNepalDistrictName(form?.elements?.district?.value || "");
+    return ["Select...", ...(nepalLocalLevelsByDistrict[district] || []).map(({ name: localName }) => localName)];
+  }
+  return ["Select..."];
+}
+
+function toggleOfficialLocationMode(button) {
+  const form = button?.closest('.profile-entry-form[data-profile-section="Official"]');
+  const control = button?.closest("[data-official-location-control]");
+  const name = button?.dataset?.field || control?.dataset?.field || "";
+  if (!form || !control || !["district", "palika"].includes(name)) return;
+  const currentValue = String(form.elements?.[name]?.value || "").trim();
+  const label = name === "district" ? "District" : "Palika";
+  const nextMode = button.dataset.mode === "manual" ? "manual" : "list";
+  if (nextMode === "manual") {
+    control.innerHTML = `<input name="${escapeHtml(name)}" value="${escapeHtml(currentValue)}" placeholder="${label}" data-official-location-manual-field="${escapeHtml(name)}" autocomplete="off" /><button type="button" class="ghost-btn official-location-mode-toggle" data-action="toggle-official-location-mode" data-field="${escapeHtml(name)}" data-mode="list" title="Use the ${label} suggestion list"><i data-lucide="list-filter" aria-hidden="true"></i><span>Use list</span></button>`;
+    control.querySelector("input")?.focus();
+  } else {
+    const options = officialLocationOptionsFromForm(form, name);
+    control.innerHTML = `${renderProfileSelect(name, label, currentValue, options, "", "", false)}<button type="button" class="ghost-btn official-location-mode-toggle" data-action="toggle-official-location-mode" data-field="${escapeHtml(name)}" data-mode="manual" title="Edit the ${label} manually"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit manually</span></button>`;
+    control.querySelector(".profile-select-trigger")?.focus();
+  }
+  syncOfficialAddressFromForm(form);
+  if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { "stroke-width": "1.8" } });
+}
+
+function openOfficialIntakeLinkedData(button) {
+  const form = button?.closest('.profile-entry-form[data-profile-section="Official"]');
+  const intakeRaw = String(form?.elements?.intake?.value || button?.dataset?.intake || "").trim();
+  const intake = intakeRaw === "Select..." ? "" : intakeRaw;
+  if (!intake) {
+    showToast("Select an intake before viewing linked data.");
+    return;
+  }
+  appState.officialLinkedDataOpen = true;
+  appState.officialLinkedDataIntake = intake;
+  const slot = form?.closest(".profile-workspace")?.querySelector("[data-official-linked-data-slot]");
+  if (slot) {
+    slot.innerHTML = renderOfficialIntakeLinkedData(appState.activeApplicant, intake);
+    if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { "stroke-width": "1.8" } });
+    return;
+  }
+  render();
+}
+
+function closeOfficialIntakeLinkedData(button) {
+  appState.officialLinkedDataOpen = false;
+  appState.officialLinkedDataIntake = "";
+  button?.closest("[data-official-linked-data-slot]")?.replaceChildren();
 }
 
 function selectProfileOption(button) {
@@ -3472,11 +4758,48 @@ function selectProfileOption(button) {
     option.classList.toggle("is-selected", selected);
     option.setAttribute("aria-selected", String(selected));
   });
+  const familyForm = root.closest('.profile-entry-form[data-profile-section="Family"]');
+  if (familyForm && hidden.name === "type") {
+    const isSponsor = /\bsponsor\b/i.test(value);
+    root.classList.toggle("is-sponsor", isSponsor);
+    familyForm.querySelectorAll(".family-type-field").forEach((field) => field.classList.toggle("is-sponsor", isSponsor));
+    const note = familyForm.querySelector(".family-type-selection-note");
+    if (note) note.hidden = !isSponsor;
+  }
   if (root.closest('.profile-entry-form[data-profile-section="Income"]') && hidden.name === "year1") {
     syncIncomeFiscalYearsFromDom(value);
   }
   closeProfileSelectMenus();
   hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  const officialForm = root.closest('.profile-entry-form[data-profile-section="Official"]');
+  if (officialForm && ["province", "district", "palika"].includes(hidden.name)) {
+    syncOfficialLocationDependencies(officialForm, hidden.name, value);
+  }
+  if (officialForm && hidden.name === "intake") {
+    appState.officialLinkedDataOpen = false;
+    appState.officialLinkedDataIntake = "";
+    syncOfficialIntakeLinkedDataTrigger(officialForm, value);
+  }
+}
+
+function syncOfficialProvinceFromDistrict(form, district) {
+  const province = nepalDistrictProvinceByName[canonicalNepalDistrictName(district)] || "";
+  const provinceHidden = form?.elements?.province;
+  const provinceRoot = provinceHidden?.closest?.("[data-profile-select]");
+  if (!provinceHidden || !provinceRoot || !province) return;
+  provinceHidden.value = province;
+  provinceHidden.dataset.optionIndex = String((profileSelectOptions.province || []).indexOf(province));
+  const display = provinceRoot.querySelector(".profile-select-value");
+  if (display) {
+    display.textContent = province;
+    display.classList.remove("is-placeholder");
+  }
+  provinceRoot.querySelectorAll(".profile-select-option").forEach((option) => {
+    const selected = option.dataset.value === province;
+    option.classList.toggle("is-selected", selected);
+    option.setAttribute("aria-selected", String(selected));
+  });
+  provinceHidden.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function homeTranslationFor(label) {
@@ -3486,14 +4809,45 @@ function homeTranslationFor(label) {
   return { source: match[1] === "Name" ? "Applicant" : match[1], language: match[2] };
 }
 
+const homeTranslationFieldMap = {
+  applicant: [
+    { target: "name_in_japanese", language: "Japanese" },
+    { target: "name_in_nepali", language: "Nepali" },
+  ],
+  first_name: [
+    { target: "first_name_in_japanese", language: "Japanese" },
+    { target: "first_name_in_nepali", language: "Nepali" },
+  ],
+  middle_name: [
+    { target: "middle_name_in_japanese", language: "Japanese" },
+    { target: "middle_name_in_nepali", language: "Nepali" },
+  ],
+  last_name: [
+    { target: "last_name_in_japanese", language: "Japanese" },
+    { target: "last_name_in_nepali", language: "Nepali" },
+  ],
+};
+
+function syncHomeTranslations(form, sourceName) {
+  const source = String(form?.elements?.[sourceName]?.value || "").trim();
+  (homeTranslationFieldMap[sourceName] || []).forEach(({ target, language }) => {
+    const targetInput = form?.elements?.[target];
+    if (!targetInput || (targetInput.value && targetInput.dataset.autoTranslated !== "true")) return;
+    targetInput.value = source ? translateHomeText(source, language) : "";
+    targetInput.dataset.autoTranslated = "true";
+  });
+}
+
 const localTranslationWords = {
   Japanese: {
     susan: "スーザン",
+    apsara: "アプサラ",
     danuwar: "ダヌワール",
     tirkha: "ティルカ",
     dhan: "ダン",
     kumari: "クマリ",
     kanwar: "カンワール",
+    maharjan: "マハルジャン",
     adhikari: "アディカリ",
     adhikary: "アディカリ",
     karki: "カルキ",
@@ -3506,11 +4860,13 @@ const localTranslationWords = {
   },
   Nepali: {
     susan: "सुसन",
+    apsara: "अप्सरा",
     danuwar: "दनुवार",
     tirkha: "तिर्खा",
     dhan: "धन",
     kumari: "कुमारी",
     kanwar: "कंवर",
+    maharjan: "महर्जन",
     adhikari: "अधिकारी",
     adhikary: "अधिकारी",
     karki: "कार्की",
@@ -3524,8 +4880,8 @@ const localTranslationWords = {
 };
 
 const localTranslationPhrases = {
-  Japanese: { "susan danuwar": "スーザン ダヌワール", "tirkha b.k.": "ティルカ B.K.", "dhan kumari kanwar": "ダン クマリ カンワール", "test test test kumar": "テスト テスト テスト クマール", "adhikari": "アディカリ" },
-  Nepali: { "susan danuwar": "सुसन दनुवार", "tirkha b.k.": "तिर्खा वि.के.", "dhan kumari kanwar": "धन कुमारी कंवर", "test test test kumar": "टेस्ट टेस्ट टेस्ट कुमार", "adhikari": "अधिकारी" },
+  Japanese: { "susan danuwar": "スーザン ダヌワール", "apsara maharjan": "アプサラ マハルジャン", "tirkha b.k.": "ティルカ B.K.", "dhan kumari kanwar": "ダン クマリ カンワール", "test test test kumar": "テスト テスト テスト クマール", "adhikari": "アディカリ" },
+  Nepali: { "susan danuwar": "सुसन दनुवार", "apsara maharjan": "अप्सरा महर्जन", "tirkha b.k.": "तिर्खा वि.के.", "dhan kumari kanwar": "धन कुमारी कंवर", "test test test kumar": "टेस्ट टेस्ट टेस्ट कुमार", "adhikari": "अधिकारी" },
 };
 
 const nepaliRomanConsonants = [
@@ -3570,6 +4926,7 @@ function transliterateNepaliWord(value) {
 }
 
 const japaneseRomanSyllables = [
+  ["jya", "ジャ"], ["jyu", "ジュ"], ["jyo", "ジョ"], ["ja", "ジャ"], ["ji", "ジ"], ["ju", "ジュ"], ["je", "ジェ"], ["jo", "ジョ"],
   ["dhi", "ディ"], ["kya", "キャ"], ["sha", "シャ"], ["shi", "シ"], ["shu", "シュ"], ["sho", "ショ"],
   ["cha", "チャ"], ["chi", "チ"], ["chu", "チュ"], ["cho", "チョ"], ["tsu", "ツ"], ["thi", "ティ"],
   ["khu", "ク"], ["kha", "カ"], ["bha", "バ"], ["bhi", "ビ"], ["ph", "フ"], ["kh", "ク"],
@@ -3679,11 +5036,92 @@ function renderFieldLabel(label) {
   return `${escapeHtml(text.replace(/\s*\*+\s*$/, ""))} <b class="required-mark">*</b>`;
 }
 
-function renderProfileGridField(section, label, value = "") {
+function familyAddressSuggestions(record = appState.activeApplicant, rowIndex = -1) {
+  const rows = Array.isArray(profileSectionData(record).Family?.rows) ? profileSectionData(record).Family.rows : [];
+  return [...new Set(rows.map((row, index) => index === rowIndex ? "" : familyMemberAddress(row)).filter((address) => String(address || "").trim()))].slice(0, 5);
+}
+
+function parseFamilyAdDob(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const isoMatch = raw.match(/^(\d{4})[-/]([0-1]?\d)[-/]([0-3]?\d)$/);
+  if (isoMatch) {
+    const date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+    return date.getFullYear() === Number(isoMatch[1])
+      && date.getMonth() === Number(isoMatch[2]) - 1
+      && date.getDate() === Number(isoMatch[3]) ? date : null;
+  }
+  const formattedMatch = raw.match(/^(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4})$/);
+  if (formattedMatch) {
+    const month = new Date(`${formattedMatch[2]} 1, 2000`).getMonth();
+    const date = new Date(Number(formattedMatch[3]), month, Number(formattedMatch[1]));
+    if (Number.isInteger(month) && date.getFullYear() === Number(formattedMatch[3]) && date.getMonth() === month && date.getDate() === Number(formattedMatch[1])) return date;
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function familyAgeFromDob(value = "", bsValue = "", today = new Date()) {
+  const bs = parseBsDate(bsValue);
+  const adIso = bs ? bsDateToAdIso(bsValue) : "";
+  const birthDate = parseFamilyAdDob(adIso || value);
+  if (!birthDate) return null;
+  const current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (birthDate > current) return null;
+  let age = current.getFullYear() - birthDate.getFullYear();
+  const birthdayDay = birthDate.getMonth() === 1 && birthDate.getDate() === 29 && !((current.getFullYear() % 4 === 0 && current.getFullYear() % 100 !== 0) || current.getFullYear() % 400 === 0)
+    ? 28
+    : birthDate.getDate();
+  const birthday = new Date(current.getFullYear(), birthDate.getMonth(), birthdayDay);
+  if (birthday > current) age -= 1;
+  return Math.max(0, age);
+}
+
+function refreshFamilyAgeBadges() {
+  document.querySelectorAll("[data-family-age-badge]").forEach((badge) => {
+    const form = badge.closest("form");
+    const adValue = form?.elements?.dob?.value || badge.dataset.dob || "";
+    const bsValue = form?.elements?.dob_bs?.value || badge.dataset.dobBs || "";
+    const age = familyAgeFromDob(adValue, bsValue);
+    badge.dataset.dob = adValue;
+    badge.dataset.dobBs = bsValue;
+    badge.textContent = age === null ? "Age: —" : `Age: ${age} ${age === 1 ? "year" : "years"}`;
+    badge.classList.toggle("is-calculated", age !== null);
+  });
+}
+
+function renderFamilyDobField(value = "", bsValue = "", required = "") {
+  const age = familyAgeFromDob(value, bsValue);
+  return `<div class="profile-date-control family-bs-date-input"><div class="family-dob-input-wrap"><input name="dob" value="${escapeHtml(value)}" placeholder=" " ${required} readonly data-action="open-family-bs-date-picker" title="Select family DOB in Bikram Sambat" /><span class="family-dob-age${age === null ? "" : " is-calculated"}" data-family-age-badge data-dob="${escapeHtml(value)}" data-dob-bs="${escapeHtml(bsValue)}">${age === null ? "Age: —" : `Age: ${age} ${age === 1 ? "year" : "years"}`}</span></div><input type="hidden" name="dob_bs" value="${escapeHtml(bsValue)}" /><button type="button" class="ghost-btn date-picker-trigger" data-action="open-family-bs-date-picker" title="Open BS date picker" aria-label="Open family BS date picker"><span class="calendar-trigger-glyph" aria-hidden="true"><i data-lucide="calendar-days"></i></span></button></div>`;
+}
+
+function renderFamilyAddressField(value = "", suggestions = []) {
+  const buttons = suggestions.map((address) => `<button type="button" class="family-address-suggestion" data-action="use-family-address-suggestion" data-address="${escapeHtml(address)}" title="Use this previously entered family address">${escapeHtml(address)}</button>`).join("");
+  return `<textarea name="work_address">${escapeHtml(value)}</textarea>${buttons ? `<div class="family-address-suggestions"><span>Previously entered address</span>${buttons}</div>` : ""}`;
+}
+
+function renderProfileGridField(section, label, value = "", context = {}) {
   if (section === "Attachment" && label === "File name") {
     return `<label><span>File name</span><input name="file_name" type="file" /></label>`;
   }
   const requiredLabel = profileGridRequiredFields[section]?.includes(label) ? `${label}*` : label;
+  if (section === "Family" && label === "DOB") {
+    return `<label><span class="profile-field-label">${renderFieldLabel(requiredLabel)}</span>${renderFamilyDobField(value, context.row?.dob_bs || context.bsValue || "", requiredLabel.endsWith("*") ? "required" : "")}</label>`;
+  }
+  if (section === "Family" && label === "WORK ADDRESS") {
+    return `<label><span class="profile-field-label">${renderFieldLabel(requiredLabel)}</span>${renderFamilyAddressField(value, familyAddressSuggestions(context.record, context.rowIndex ?? -1))}</label>`;
+  }
+  if (section === "Family" && label === "SNO (AUTO)") {
+    return renderProfileField(requiredLabel, value, { locked: true, autoImport: "Automatically numbered" });
+  }
+  if (section === "Family" && label === "TYPE") {
+    const isSponsor = /\bsponsor\b/i.test(String(value || ""));
+    const rendered = renderProfileField(requiredLabel, value, {});
+    const labelClass = `family-type-field${isSponsor ? " is-sponsor" : ""}`;
+    const selectClass = ` family-type-select${isSponsor ? " is-sponsor" : ""}`;
+    const note = `<small class="family-type-selection-note"${isSponsor ? "" : " hidden"}>Sponsor selected · $ will activate on save</small>`;
+    return rendered.replace("<label>", `<label class="${labelClass}">`).replace('<div class="profile-select"', `<div class="profile-select${selectClass}"`).replace("</label>", `${note}</label>`);
+  }
   return renderProfileField(requiredLabel, value, { singleLine: section === "Education" && label === "Address" });
 }
 
@@ -3700,9 +5138,22 @@ function renderProfileGridSection(section, record, options = {}) {
   const saved = profileSectionData(record)[section] || {};
   const rows = saved.rows || [];
   const headers = profileGridSections[section] || [];
+  const formHeaders = section === "Education"
+    ? ["SNo", "Title", "Institution", "Address", "Started Year", "Started Month", "Ended Year", "Ended Month", "Contact", "GPA/Percent"]
+    : headers;
   const visibleHeaders = profileVisibleColumns(section, headers, record);
   const isFamily = section === "Family";
+  if (isFamily && rows.length) {
+    const before = JSON.stringify(rows.map((row) => [row.account_holder, row.account_holder_source]));
+    const selectedIndex = applyFamilyAccountHolderRules(record);
+    const after = JSON.stringify(rows.map((row) => [row.account_holder, row.account_holder_source]));
+    if (before !== after) {
+      storeObject(storageKeys.profileSections, data.profileSections);
+      if (selectedIndex >= 0) syncAccountHolderFromFamily(record, selectedIndex, { log: false });
+    }
+  }
   const selectedFamilyIndex = isFamily ? familyAccountHolderIndex(record) : -1;
+  const familySno = isFamily ? nextFamilySno(record) : "";
   return `
     <section class="profile-workspace">
       <div class="profile-section-head">
@@ -3712,11 +5163,11 @@ function renderProfileGridSection(section, record, options = {}) {
       ${isFamily ? renderFamilyAccountHolderControl(record, selectedFamilyIndex) : ""}
       ${options.balance ? `<div class="profile-balance">${escapeHtml(options.balance)}</div>` : ""}
       <form class="profile-entry-form compact" data-profile-section="${escapeHtml(section)}">
-        ${headers.map((label) => renderProfileGridField(section, label)).join("")}
+        ${formHeaders.map((label) => renderProfileGridField(section, label, isFamily && label === "SNO (AUTO)" ? familySno : "", { record })).join("")}
       </form>
-      ${section === "Education" ? `
+      ${["Education", "Family"].includes(section) ? `
         <div class="profile-section-actions education-row-actions">
-          <button type="button" class="primary-btn" data-action="add-profile-row" data-section="Education">Save</button>
+          <button type="button" class="primary-btn" data-action="add-profile-row" data-section="${escapeHtml(section)}">Save</button>
         </div>
       ` : ""}
       <div class="file-history-tools">
@@ -3732,7 +5183,7 @@ function renderProfileGridSection(section, record, options = {}) {
             const otherSelected = isFamily && selectedFamilyIndex >= 0 && !rowSelected && appState.familyAccountHolderSelectionMode !== true;
             const accountHolderButtonState = otherSelected ? ` disabled title="Click Change to select another family member"` : ` title="${rowSelected ? "Selected account holder" : "Use as account holder"}"`;
             const accountHolderButton = isFamily ? `<td class="family-account-holder-cell"><button type="button" class="family-account-holder-btn${rowSelected ? " is-selected" : ""}" data-action="select-family-account-holder" data-row-index="${rowIndex}" aria-label="${rowSelected ? "Selected account holder" : "Select as account holder"}" aria-pressed="${rowSelected ? "true" : "false"}"${accountHolderButtonState}>$</button></td>` : "";
-            return `<tr>${accountHolderButton}${visibleHeaders.map((header) => `<td>${escapeHtml(profileRowValue(row, header, headers) || "-")}</td>`).join("")}<td class="profile-row-actions">${profileRowEditButton(section, rowIndex)}</td></tr>`;
+            return `<tr class="${isFamily && /\bsponsor\b/i.test(familyRowType(row)) ? "family-row-sponsor" : ""}">${accountHolderButton}${visibleHeaders.map((header) => { const value = header === "SNO (AUTO)" ? (profileRowValue(row, header, headers) || String(rowIndex + 1)) : profileRowValue(row, header, headers); const isSponsorType = header === "TYPE" && /\bsponsor\b/i.test(String(value || "")); return `<td class="${isSponsorType ? "family-type-cell is-sponsor" : ""}">${isSponsorType ? `<span class="family-type-badge">${escapeHtml(value)}</span>` : escapeHtml(value || "-")}</td>`; }).join("")}<td class="profile-row-actions">${profileRowEditButton(section, rowIndex)}</td></tr>`;
           }).join("") : `<tr><td colspan="${visibleHeaders.length + (isFamily ? 2 : 1)}">No data</td></tr>`}
         </tbody>
         <tfoot><tr><td colspan="${visibleHeaders.length + (isFamily ? 2 : 1)}">#${rows.length}</td></tr></tfoot>
@@ -3765,7 +5216,7 @@ function openProfileRowEditor(section, rowIndex) {
       <button class="icon-button" data-action="close-drawer" title="Close" aria-label="Close">×</button>
     </div>
     <form class="profile-entry-form compact profile-row-editor-form" data-profile-row-editor="true" data-profile-section="${escapeHtml(section)}" data-row-index="${rowIndex}">
-      ${headers.map((label) => renderProfileGridField(section, label, profileRowValue(row, label, headers))).join("")}
+      ${headers.map((label) => renderProfileGridField(section, label, profileRowValue(row, label, headers), { record, row, rowIndex })).join("")}
       <div class="form-actions">
         <button type="button" class="ghost-btn" data-action="close-drawer">Cancel</button>
         <button type="button" class="primary-btn" data-action="save-profile-row" data-section="${escapeHtml(section)}" data-row-index="${rowIndex}">Save changes</button>
@@ -3982,6 +5433,10 @@ function validateRequiredFields(form, labels, section) {
 }
 
 function profileInitialValue(section, label, record) {
+  // Newly created local applicants must start with a clean profile. The
+  // observed/sample defaults below are useful for captured or existing
+  // records, but must never leak into a new applicant's data-entry form.
+  if (isFreshApplicantDraft(record)) return "";
   const key = fieldKey(label);
   const homeDefaults = {
     applicant: record.name || "",
@@ -3994,7 +5449,7 @@ function profileInitialValue(section, label, record) {
     Home: homeDefaults,
     Education: { pos_title: "Mass Communication" },
     Application: { marital_status: "Single", birth_place: "Nawalparasi (West)" },
-    Official: { palika: "Sunwal", palika_type: "Municipality", ward_no: "13", district: "Nawalparasi", province: "Lumbini" },
+    Official: { palika: "Sunwal", palika_type: "Municipality", ward_no: "13", district: "Nawalparasi (West of Bardaghat Susta)", province: "Lumbini" },
     Income: {
       year1: currentFiscalYearLabel(),
       year2: fiscalYearLabel(currentNepaliFiscalYearStart() + 1),
@@ -4008,6 +5463,25 @@ function profileInitialValue(section, label, record) {
   return defaults[section]?.[key] || "";
 }
 
+function profileSectionHasMeaningfulData(section) {
+  if (!section || typeof section !== "object") return false;
+  return Object.entries(section).some(([key, value]) => {
+    if (key.startsWith("__")) return false;
+    if (key === "rows") return Array.isArray(value) && value.length > 0;
+    if (Array.isArray(value)) return value.some((item) => profileSectionHasMeaningfulData(item));
+    return String(value ?? "").trim() !== "";
+  });
+}
+
+function isFreshApplicantDraft(record) {
+  if (!record) return false;
+  if (record.blankProfile === true) return true;
+  const id = String(record.localId || record.id || "");
+  if (!/^LOCAL-/.test(id)) return false;
+  const profile = data.profileSections?.[profileRecordKey(record)] || {};
+  return !Object.entries(profile).some(([section, values]) => section !== "Home" && section !== "__test_student_seeded" && profileSectionHasMeaningfulData(values));
+}
+
 function profileSectionData(record = appState.activeApplicant) {
   const key = profileRecordKey(record);
   data.profileSections[key] ||= {};
@@ -4019,6 +5493,43 @@ function profileSectionData(record = appState.activeApplicant) {
     delete legacyFamily.rows;
     family.rows = Object.values(legacyFamily).some((value) => String(value ?? "").trim()) ? [legacyFamily] : [];
     storeObject(storageKeys.profileSections, data.profileSections);
+  }
+  const official = profile.Official;
+  if (official) {
+    let officialChanged = false;
+    // NID is the canonical field used by the template renderer. Migrate the
+    // older duplicate NID No value once, then remove the duplicate field.
+    if (!String(official.nid || "").trim() && String(official.nid_no || "").trim()) {
+      official.nid = official.nid_no;
+      officialChanged = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(official, "nid_no")) {
+      delete official.nid_no;
+      officialChanged = true;
+    }
+    const normalizedDistrict = canonicalNepalDistrictName(official.district);
+    if (normalizedDistrict && official.district !== normalizedDistrict) {
+      official.district = normalizedDistrict;
+      officialChanged = true;
+    }
+    const derivedProvince = nepalDistrictProvinceByName[String(official.district || "").trim()];
+    if (derivedProvince && official.province !== derivedProvince) {
+      official.province = derivedProvince;
+      officialChanged = true;
+    }
+    const selectedPalika = officialPalikaRecord(official.district, official.palika);
+    if (selectedPalika && official.palika_type !== selectedPalika.type) {
+      official.palika_type = selectedPalika.type;
+      officialChanged = true;
+    }
+    if (official.dob_bs && !official.dob) {
+      const convertedDob = formatOfficialDobAd(official.dob_bs);
+      if (convertedDob) {
+        official.dob = convertedDob;
+        officialChanged = true;
+      }
+    }
+    if (officialChanged) storeObject(storageKeys.profileSections, data.profileSections);
   }
   const income = profile.Income;
   if (income) {
@@ -4042,7 +5553,7 @@ function profileSectionData(record = appState.activeApplicant) {
 const applicantTaskRules = [
   { section: "Home", fields: ["Applicant*", "First Name*", "Last Name*", "Gender*"], priority: "Required" },
   { section: "Application", fields: ["Consultancy*", "School", "Mobile Number (SMS purpose)*", "Email", "Temporary Address"], priority: "Important" },
-  { section: "Official", fields: ["Complete Address", "Citizenship No", "DOB", "Intake", "Course", "Status", "Passport No", "Passport Expiry Date"], priority: "Important" },
+  { section: "Official", fields: ["Complete Address", "Citizenship No", "DOB", "Intake", "Course", "Passport No", "Passport Expiry Date"], priority: "Important" },
   { section: "Document Check", fields: ["Address in Citizenship", "Father's Name in Citizenship", "Mother's Name in Citizenship", "School Name in Trascript", "Address in Transcript"], priority: "Document" },
   { section: "Family", fields: ["NAME*", "GENDER*", "DOB*"], priority: "Recommended" },
   { section: "Education", fields: ["Education record"], priority: "Recommended", row: true },
@@ -4114,7 +5625,7 @@ function applicantTodoAvatar(record) {
   const hasPhoto = /^(?:data:image\/|https?:\/\/|blob:)/i.test(source);
   return hasPhoto
     ? `<img src="${escapeHtml(source)}" alt="${escapeHtml(record.name || "Applicant")}" />`
-    : `<span>${escapeHtml(initialsFor(record.name || record.avatar || "Applicant"))}</span>`;
+    : profilePhotoPlaceholder(record.gender, record.name || "Applicant", "compact");
 }
 
 function renderApplicantTodoDashboard() {
@@ -4312,7 +5823,6 @@ function seedTestStudentProfile(record, profile) {
       citizenship_no: "TEST-CIT-0001",
       dob_bs: "2059-05-12",
       dob: "28 August, 2002",
-      nid_no: "TEST-NID-0001",
       intake: "April 2027",
       course: "Japanese Language Course",
       status: "Inquiry",
@@ -4372,7 +5882,24 @@ function seedTestStudentProfile(record, profile) {
 function accountSectionData(record, section) {
   const profile = profileSectionData(record);
   profile[section] ||= accountSectionDefaults(section, record);
-  if (section === "Account Information") normalizeAccountInformationDefaults(profile[section]);
+  if (section === "Account Information") {
+    normalizeAccountInformationDefaults(profile[section]);
+    // Migrate the old clone placeholder only. Deliberately entered dates are
+    // never overwritten; the new default is a deterministic 5–6 year-old
+    // working day for each applicant.
+    if (!isFreshApplicantDraft(record)) {
+      const oldPlaceholder = "20 August, 2025";
+      const nextDefault = formatLongAccountDate(defaultAccountOpeningDate(record));
+      let dateChanged = false;
+      ["account_open_date", "opening_date"].forEach((field) => {
+        if (!String(profile[section][field] || "").trim() || profile[section][field] === oldPlaceholder) {
+          if (profile[section][field] !== nextDefault) dateChanged = true;
+          profile[section][field] = nextDefault;
+        }
+      });
+      if (dateChanged) storeObject(storageKeys.profileSections, data.profileSections);
+    }
+  }
   if (section === "Transaction Records") migrateTestStudentTransactions(record, profile[section]);
   return profile[section];
 }
@@ -4456,6 +5983,14 @@ function accountSectionDefaults(section, record) {
     return Object.fromEntries(accountInfoFields.map((field) => [fieldKey(field.label), accountInfoDefaultValue(field.label, record)]));
   }
   if (section === "Reference Number Setup") {
+    if (isFreshApplicantDraft(record)) {
+      return {
+        reference_prefix: "",
+        reference_start_no: "",
+        number_of_references: "",
+        reference_notes: "",
+      };
+    }
     return {
       reference_prefix: "",
       reference_start_no: "26366",
@@ -4464,6 +5999,14 @@ function accountSectionDefaults(section, record) {
     };
   }
   if (section === "Transaction Records") {
+    if (isFreshApplicantDraft(record)) {
+      return {
+        rows: [],
+        summary_updated_at: "",
+        visible_columns_transaction: [...accountTransactionHeaders],
+        random_amounts_version: "v10",
+      };
+    }
     return {
       rows: defaultAccountTransactions.map((row) => ({ ...row })),
       summary_updated_at: "",
@@ -4478,19 +6021,21 @@ function accountSectionDefaults(section, record) {
 }
 
 function accountInfoDefaultValue(label, record = appState.activeApplicant) {
+  if (isFreshApplicantDraft(record)) return "";
   const today = "01 October, 2026";
+  const openingDate = formatLongAccountDate(defaultAccountOpeningDate(record));
   const defaults = {
     "Output Document Style *": "Trinetra PAN",
     "Account Holder Name *": record?.name || "",
     "Account Holder Address *": record?.address || record?.completeAddress || "-",
-    "Account Open Date": "20 August, 2025",
+    "Account Open Date": openingDate,
     "Account Reference No *": record?.accountRef || "056-02010",
     "Account Type": "Saving",
     "Interest Rate *": "8",
     "Tax Rate *": "6",
-    "Opening Date *": "20 August, 2025",
+    "Opening Date *": openingDate,
     "Opening Amount *": "1653403.78",
-    "Interest Calculation Days *": interestCalculationDaysForOpeningDate("20 August, 2025") || "35",
+    "Interest Calculation Days *": interestCalculationDaysForOpeningDate(openingDate) || "35",
     "Exchange Date *": today,
     "Exchange Rate *": "153.64",
     "Draft Print Date": today,
@@ -4519,7 +6064,8 @@ function accountFilteredRows(rows) {
 }
 
 function accountBalanceLabel(rows, section = {}) {
-  const summary = calculateTransactionFinancials(rows, accountSectionData(appState.activeApplicant, "Account Information"));
+  const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
+  const summary = calculateTransactionFinancials(rows, sampleAccountInfo(accountInfo, section.sample_settings || {}));
   const stamp = section.summary_updated_at ? ` Updated ${section.summary_updated_at}.` : "";
   return `Balance Npr. ${formatMoney(summary.balance)} (system estimate for internal reference). Debit Entries ${summary.debitEntries} Credit Entries ${summary.creditEntries} Duration ${section.duration_months || ""} (months).${stamp}`;
 }
@@ -4889,7 +6435,7 @@ function templateApplicantValue(code, record = appState.activeApplicant) {
     Dob: official.dob || official.dob_bs || "",
     "Birth Place": application.birth_place || "",
     "Citizenship No": official.citizenship_no || "",
-    NID: official.nid || official.nid_no || "",
+    NID: official.nid || "",
     "Passport No": record?.passport || official.passport_no || "",
     "Passport Issued Date": official.passport_issued_date || "",
     "Passport Expiry Date": record?.passportExpiry || official.passport_expiry_date || "",
@@ -4921,7 +6467,8 @@ function templateApplicantValue(code, record = appState.activeApplicant) {
   if (/^Income>\s*Sum:\s*Year3/i.test(raw)) return direct["Income>Sum: Year3"];
   if (/^Family>/i.test(raw)) {
     const familyRows = Array.isArray(sections.Family?.rows) ? sections.Family.rows : [];
-    const sponsor = familyRows.find((row) => /sponsor/i.test(String(row.type || row.f_a_relation || row["F-A Relation"] || ""))) || familyRows[0] || {};
+    const selectedAccountHolder = familyRows.find((row) => familyRowIsAccountHolder(row));
+    const sponsor = selectedAccountHolder || familyRows.find((row) => /\bsponsor\b/i.test(familyRowType(row))) || familyRows[0] || {};
     const familyKey = raw.split(">").slice(-1)[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
     return sponsor[familyKey] || sponsor[fieldKey(familyKey)] || "";
   }
@@ -5343,6 +6890,22 @@ function renderTemplateLibrary(entries = templateEntries(), record = null, optio
   </table>`;
 }
 
+function transactionYearOptions(rows) {
+  return [...new Set((Array.isArray(rows) ? rows : []).map((row) => parseAccountDate(row.date)?.getFullYear()).filter(Boolean))]
+    .sort((a, b) => a - b);
+}
+
+function renderTransactionYearFilter(rows, scope = "transaction") {
+  const years = transactionYearOptions(rows);
+  const selected = appState.accountTransactionYearFilter || "all";
+  return `<label class="account-year-filter"><span>Year</span><select data-action="filter-account-year" data-scope="${escapeHtml(scope)}" aria-label="Filter transactions by year"><option value="all"${selected === "all" ? " selected" : ""}>All years</option>${years.map((year) => `<option value="${year}"${String(selected) === String(year) ? " selected" : ""}>${year}</option>`).join("")}</select></label>`;
+}
+
+function filterTransactionRowsByYear(rows, year = "all") {
+  if (!year || year === "all") return rows;
+  return rows.filter((row) => String(parseAccountDate(row.date)?.getFullYear() || "") === String(year));
+}
+
 function renderDocumentResources() {
   const entries = templateEntries();
   return `
@@ -5476,12 +7039,25 @@ function render() {
   }
   enhanceNativeSelects(view);
   if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { "stroke-width": "1.8" } });
+  updateNotificationBell();
   startDocumentWorkflowClock();
+  if (appState.officialDobBsPickerOpen) requestAnimationFrame(positionOfficialBsDatePicker);
 }
 
 renderSidebar();
 applyTheme();
 window.addEventListener("hashchange", render);
+window.addEventListener("storage", (event) => {
+  if (event.key !== storageKeys.profileComments) return;
+  updateNotificationBell();
+  render();
+});
+window.addEventListener("resize", () => {
+  if (appState.officialDobBsPickerOpen) positionOfficialBsDatePicker();
+});
+window.addEventListener("scroll", () => {
+  if (appState.officialDobBsPickerOpen) positionOfficialBsDatePicker();
+}, true);
 
 document.addEventListener("pointerdown", (event) => {
   const handle = event.target.closest("[data-profile-resize]");
@@ -5553,6 +7129,9 @@ document.getElementById("globalSearch").addEventListener("input", (event) => {
 });
 render();
 hydrateServerTemplates();
+hydrateCommentStoreFromServer();
+window.setInterval(hydrateCommentStoreFromServer, 30 * 1000);
+setInterval(refreshFamilyAgeBadges, 60 * 1000);
 
 const themedSelectObserver = new MutationObserver((mutations) => {
   const hasNewSelect = mutations.some((mutation) => [...mutation.addedNodes].some((node) => (
@@ -5578,6 +7157,18 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (!appState.officialDobBsPickerOpen) return;
+  if (event.target.closest(".official-bs-date-picker, [data-action=\"open-official-bs-date-picker\"]")) return;
+  closeOfficialBsDatePicker();
+});
+
+document.addEventListener("click", (event) => {
+  if (!appState.familyDobPickerTargetForm) return;
+  if (event.target.closest("#familyBsDatePickerModal, [data-action=\"open-family-bs-date-picker\"]")) return;
+  closeFamilyBsDatePicker();
+});
+
+document.addEventListener("click", (event) => {
   if (!appState.accountFamilyPickerOpen) return;
   if (event.target.closest(".account-family-picker")) return;
   closeAccountFamilyPicker();
@@ -5590,6 +7181,46 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.matches(".profile-select-search")) {
+    const root = event.target.closest("[data-profile-select]");
+    const query = String(event.target.value || "").trim().toLowerCase();
+    const options = [...(root?.querySelectorAll(".profile-select-option") || [])];
+    const visibleCount = options.reduce((count, option) => {
+      const matches = !query || String(option.dataset.optionLabel || option.textContent || "").toLowerCase().includes(query);
+      option.hidden = !matches;
+      return count + (matches ? 1 : 0);
+    }, 0);
+    const empty = root?.querySelector(".profile-select-empty");
+    if (empty) {
+      empty.hidden = visibleCount > 0;
+    }
+    return;
+  }
+  if (event.target.matches(".profile-comment-input")) {
+    renderCommentMentionMenu(event.target);
+    return;
+  }
+  if (event.target.matches(".application-grid-filter")) {
+    const query = String(event.target.value || "").trim().toLowerCase();
+    event.target.closest(".application-record-workspace")?.querySelectorAll(".application-record-table tbody tr").forEach((row) => {
+      row.style.display = !query || row.textContent.toLowerCase().includes(query) ? "" : "none";
+    });
+    return;
+  }
+  const officialForm = event.target.closest('.profile-entry-form[data-profile-section="Official"]');
+  if (officialForm && event.target.name === "complete_address") {
+    event.target.dataset.autoAddress = "false";
+  } else if (officialForm && ["district", "palika"].includes(event.target.name) && event.target.matches("[data-official-location-manual-field]")) {
+    syncOfficialAddressFromForm(officialForm);
+  } else if (officialForm && event.target.name === "ward_no") {
+    syncOfficialAddressFromForm(officialForm);
+  }
+  const homeForm = event.target.closest('.profile-entry-form[data-profile-section="Home"]');
+  if (homeForm) {
+    const isTranslationTarget = Object.values(homeTranslationFieldMap).some((targets) => targets.some(({ target }) => target === event.target.name));
+    if (isTranslationTarget) delete event.target.dataset.autoTranslated;
+    else syncHomeTranslations(homeForm, event.target.name);
+  }
   if (event.target.matches(".document-checklist-search")) {
     appState.documentChecklistSearch = event.target.value;
     const query = event.target.value.trim().toLowerCase();
@@ -5643,7 +7274,11 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("change", (event) => {
-  if (event.target.matches(".document-checklist-category")) {
+  if (event.target.matches(".official-bs-date-part")) {
+    updateOfficialBsDatePickerPart(event.target.dataset.part, event.target.value);
+  } else if (event.target.matches(".family-bs-date-part")) {
+    updateFamilyBsDatePickerPart(event.target.dataset.part, event.target.value);
+  } else if (event.target.matches(".document-checklist-category")) {
     appState.documentChecklistCategory = event.target.value || "All";
     render();
   } else if (event.target.matches(".document-workflow-status")) {
@@ -5667,6 +7302,9 @@ document.addEventListener("change", (event) => {
       render();
       showToast(`${event.target.value || "Output document style"} selected.`);
     }
+  } else if (event.target.matches(".account-year-filter .themed-select-value, .account-year-filter select")) {
+    appState.accountTransactionYearFilter = event.target.value || "all";
+    render();
   } else if (event.target.matches(".applicant-table-select")) {
     const row = event.target.closest(".data-row");
     if (row) row.dataset.selected = event.target.checked ? "true" : "false";
@@ -5753,6 +7391,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (!event.target.closest(".profile-comment-input, .comment-mention-menu")) {
+    document.querySelectorAll(".comment-mention-menu").forEach((menu) => menu.remove());
+  }
+
   const actionButton = event.target.closest("[data-action], button");
   if (!actionButton) return;
   const action = actionButton.dataset.action || actionButton.textContent.trim().toLowerCase();
@@ -5831,6 +7473,12 @@ document.addEventListener("click", (event) => {
     openApplicantProfile(actionButton);
   } else if (action === "open-recent-applicant") {
     openRecentApplicant(actionButton);
+  } else if (action === "insert-comment-mention") {
+    insertCommentMention(actionButton);
+  } else if (action === "open-comment-notification") {
+    openCommentNotification(actionButton);
+  } else if (action === "resolve-comment-assignment") {
+    resolveCommentAssignment(actionButton);
   } else if (action === "sort-table") {
     sortTable(actionButton);
   } else if (action === "applicant-column-chooser") {
@@ -5871,6 +7519,12 @@ document.addEventListener("click", (event) => {
     toggleProfileSelect(actionButton);
   } else if (action === "select-profile-option") {
     selectProfileOption(actionButton);
+  } else if (action === "view-official-intake-linked-data") {
+    openOfficialIntakeLinkedData(actionButton);
+  } else if (action === "close-official-intake-linked-data") {
+    closeOfficialIntakeLinkedData(actionButton);
+  } else if (action === "toggle-official-location-mode") {
+    toggleOfficialLocationMode(actionButton);
   } else if (action === "applicant-export-menu") {
     openApplicantExportMenu();
   } else if (action === "applicant-export-all") {
@@ -5985,10 +7639,13 @@ document.addEventListener("click", (event) => {
     const documentId = String(actionButton.dataset.documentId || "");
     const requirement = actionButton.dataset.requirement || "undecided";
     const checklistScroll = captureChecklistScroll(documentId);
-    updateDocumentChecklistEntry(documentId, { requirement }, `Marked ${checklistRequirementLabel(requirement)}`);
+    const actionLabel = requirement === "undecided" ? "Undid requirement selection" : `Marked ${checklistRequirementLabel(requirement)}`;
+    updateDocumentChecklistEntry(documentId, { requirement }, actionLabel);
     render();
     restoreChecklistScroll(checklistScroll);
-    showToast(`${checklistEntryFor(documentId).documentName || "Document"} marked ${checklistRequirementLabel(requirement)}.`);
+    showToast(requirement === "undecided"
+      ? `${checklistEntryFor(documentId).documentName || "Document"} is undecided again. Select Required or Not Required.`
+      : `${checklistEntryFor(documentId).documentName || "Document"} marked ${checklistRequirementLabel(requirement)}.`);
   } else if (action === "toggle-checklist-visibility") {
     const documentId = String(actionButton.dataset.documentId || "");
     const current = checklistEntryFor(documentId);
@@ -6121,6 +7778,31 @@ document.addEventListener("click", (event) => {
     openProfileRowEditor(actionButton.dataset.section, Number(actionButton.dataset.rowIndex));
   } else if (action === "add-profile-row") {
     addProfileRow(actionButton.dataset.section);
+  } else if (action === "open-family-bs-date-picker") {
+    openFamilyBsDatePicker(actionButton);
+  } else if (action === "close-family-bs-date-picker") {
+    closeFamilyBsDatePicker();
+  } else if (action === "apply-family-bs-date") {
+    applyFamilyBsDate();
+  } else if (action === "use-family-address-suggestion") {
+    const addressInput = actionButton.closest("form")?.elements?.work_address;
+    if (addressInput) {
+      addressInput.value = actionButton.dataset.address || "";
+      addressInput.dispatchEvent(new Event("input", { bubbles: true }));
+      showToast("Previous family address applied.");
+    }
+  } else if (action === "use-official-address-suggestion") {
+    const addressInput = actionButton.closest("form")?.elements?.complete_address;
+    const address = actionButton.dataset.address || "";
+    if (addressInput && address) {
+      addressInput.value = address;
+      addressInput.dataset.autoAddress = "true";
+      showToast("Suggested complete address applied. You can still edit it manually.");
+    }
+  } else if (action === "edit-application-row") {
+    openApplicationRowEditor(actionButton.dataset.gridKey, Number(actionButton.dataset.rowIndex));
+  } else if (action === "add-application-row") {
+    addApplicationRow(actionButton.dataset.gridKey);
   } else if (action === "save-account-info") {
     saveAccountInfo();
   } else if (action === "toggle-account-info-auto-lock") {
@@ -6160,6 +7842,14 @@ document.addEventListener("click", (event) => {
     moveIncomeCalendarMonth(action === "income-calendar-prev-month" ? -1 : 1);
   } else if (action === "income-calendar-select-date") {
     selectIncomeCalendarDate(actionButton.dataset.date);
+  } else if (action === "open-official-bs-date-picker") {
+    openOfficialBsDatePicker();
+  } else if (action === "close-official-bs-date-picker") {
+    closeOfficialBsDatePicker();
+  } else if (action === "apply-official-bs-date") {
+    applyOfficialBsDate();
+  } else if (action === "select-bs-picker-day") {
+    selectBsPickerDay(actionButton.dataset.pickerScope || "official", actionButton.dataset.day);
   } else if (action === "calculate-opening-amount") {
     calculateOpeningAmount();
   } else if (action === "generate-reference-numbers") {
@@ -6412,11 +8102,15 @@ function rowPayloadFromRow(row) {
 
 function openApplicantProfile(row) {
   const { headers, values } = rowPayloadFromRow(row);
-  const record = profileRecord(headers, values);
+  const parsedRecord = profileRecord(headers, values);
+  const localId = String(values[0] || "");
+  const localRecord = data.localApplicants.find((item) => String(item.id || item.localId || "") === localId || String(item.name || "").trim().toLowerCase() === String(parsedRecord.name || "").trim().toLowerCase());
+  const record = localRecord ? { ...localRecord, ...parsedRecord, blankProfile: localRecord.blankProfile === true } : parsedRecord;
   record.id = values[0] || "67066";
   record.created = values[6] || record.created || "March 3, 2024 11:24 AM";
   recordRecentApplicant(record);
   appState.activeApplicant = record;
+  appState.accountTransactionYearFilter = "all";
   appState.profileWindowOpen = true;
   closeDetailDrawer();
   storeObject(storageKeys.activeApplicant, record);
@@ -6445,6 +8139,7 @@ function openRecentApplicant(button) {
   };
   recordRecentApplicant(record);
   appState.activeApplicant = record;
+  appState.accountTransactionYearFilter = "all";
   appState.profileWindowOpen = true;
   closeDetailDrawer();
   storeObject(storageKeys.activeApplicant, record);
@@ -6480,9 +8175,10 @@ function applyTheme() {
   document.documentElement.classList.toggle("dark-mode", Boolean(appState.darkMode));
   const toggle = document.querySelector(".theme-toggle");
   if (toggle) {
-    toggle.textContent = appState.darkMode ? "☀" : "◐";
+    toggle.innerHTML = `<i data-lucide="${appState.darkMode ? "sun" : "circle-half"}" aria-hidden="true">${appState.darkMode ? "☀" : "◐"}</i>`;
     toggle.title = appState.darkMode ? "Switch to light mode" : "Switch to dark mode";
     toggle.setAttribute("aria-label", toggle.title);
+    window.lucide?.createIcons?.({ attrs: { "stroke-width": "1.8" } });
   }
 }
 
@@ -6617,6 +8313,7 @@ function runSaveAction(button, action) {
     case "save-profile-more": result = saveApplicantMoreSettings(); break;
     case "save-profile-form": result = saveProfileForm(section); break;
     case "save-profile-row": result = saveProfileRow(section, Number(button?.dataset.rowIndex)); break;
+    case "save-application-row": result = saveApplicationRow(button?.dataset.gridKey, Number(button?.dataset.rowIndex)); break;
     case "save-account-info": result = saveAccountInfo(); break;
     case "save-sample-records": result = saveSampleRecords(); break;
     case "save-module-row": result = saveModuleRow(); break;
@@ -6668,34 +8365,54 @@ function runSaveAction(button, action) {
 function saveApplicant() {
   const form = document.getElementById("applicantForm");
   if (!form) return false;
+  if (!validateRequiredFields(form, profileFormFields.Home, "Home")) return false;
   const formData = new FormData(form);
-  const name = String(formData.get("name") || "").trim();
-  const firstName = String(formData.get("firstName") || "").trim();
-  const lastName = String(formData.get("lastName") || "").trim();
-  const gender = String(formData.get("gender") || "").trim();
-  if (!name || !firstName || !lastName || gender === "Select...") {
-    showToast("Applicant, First Name, Last Name and Gender are required.");
-    return false;
-  }
+  const homeData = Object.fromEntries(profileFormFields.Home.map((label) => [fieldKey(label), String(formData.get(fieldKey(label)) || "").trim()]));
+  const translationSources = {
+    name_in_japanese: ["applicant", "Japanese"],
+    first_name_in_japanese: ["first_name", "Japanese"],
+    middle_name_in_japanese: ["middle_name", "Japanese"],
+    last_name_in_japanese: ["last_name", "Japanese"],
+    name_in_nepali: ["applicant", "Nepali"],
+    first_name_in_nepali: ["first_name", "Nepali"],
+    middle_name_in_nepali: ["middle_name", "Nepali"],
+    last_name_in_nepali: ["last_name", "Nepali"],
+  };
+  Object.entries(translationSources).forEach(([target, [source, language]]) => {
+    if (!homeData[target] && homeData[source]) homeData[target] = translateHomeText(homeData[source], language);
+  });
+  const name = homeData.applicant;
+  const firstName = homeData.first_name;
+  const lastName = homeData.last_name;
+  const gender = homeData.gender;
+  const localId = `LOCAL-${Date.now()}`;
   const applicant = {
+    id: localId,
+    localId,
     name,
     firstName,
-    middleName: String(formData.get("middleName") || "").trim(),
+    middleName: homeData.middle_name,
     lastName,
     gender,
-    nameJapanese: String(formData.get("nameJapanese") || "").trim(),
-    firstNameJapanese: String(formData.get("firstNameJapanese") || "").trim(),
-    middleNameJapanese: String(formData.get("middleNameJapanese") || "").trim(),
-    lastNameJapanese: String(formData.get("lastNameJapanese") || "").trim(),
-    nameNepali: String(formData.get("nameNepali") || "").trim(),
-    firstNameNepali: String(formData.get("firstNameNepali") || "").trim(),
-    middleNameNepali: String(formData.get("middleNameNepali") || "").trim(),
-    lastNameNepali: String(formData.get("lastNameNepali") || "").trim(),
+    nameJapanese: homeData.name_in_japanese,
+    firstNameJapanese: homeData.first_name_in_japanese,
+    middleNameJapanese: homeData.middle_name_in_japanese,
+    lastNameJapanese: homeData.last_name_in_japanese,
+    nameNepali: homeData.name_in_nepali,
+    firstNameNepali: homeData.first_name_in_nepali,
+    middleNameNepali: homeData.middle_name_in_nepali,
+    lastNameNepali: homeData.last_name_in_nepali,
     assignUser: String(formData.get("assignUser") || "").trim(),
     status: "Inquiry",
     official: String(formData.get("assignUser") || "").trim(),
     created: todayLabel(),
+    // Keep all non-Home profile sections blank until this applicant's own
+    // data is explicitly entered. This prevents sample defaults from leaking
+    // into a newly created applicant.
+    blankProfile: true,
   };
+  data.profileSections[profileRecordKey(applicant)] = { Home: homeData };
+  storeObject(storageKeys.profileSections, data.profileSections);
   data.localApplicants.unshift(applicant);
   storeArray(storageKeys.applicants, data.localApplicants);
   form.reset();
@@ -6730,6 +8447,12 @@ function saveProfileForm(section) {
     }
     sectionData[section][key] = nextValue;
   }
+  if (section === "Official") {
+    ["district", "palika"].forEach((field) => {
+      const manual = Boolean(form.querySelector(`[data-official-location-manual-field="${cssEscape(field)}"]`));
+      sectionData[section][`__manual_${field}`] = manual;
+    });
+  }
   storeObject(storageKeys.profileSections, data.profileSections);
   if (changes.length) appendProfileLog(appState.activeApplicant, { type: "changed", tab: section, dataModule: section, changes });
   if (changes.length) render();
@@ -6755,7 +8478,10 @@ function addProfileRow(section) {
     const names = [...(input.files || [])].map((file) => file.name).filter(Boolean);
     if (names.length) row[input.name] = names.join(", ");
   });
-  if (section === "Family") row.account_holder = "false";
+  if (section === "Family") {
+    row.account_holder = "false";
+    row.sno_auto = nextFamilySno(appState.activeApplicant);
+  }
   if (!Object.values(row).some(Boolean)) {
     showToast(`Fill at least one ${section} field first.`);
     return;
@@ -6764,6 +8490,10 @@ function addProfileRow(section) {
   sectionData[section] ||= {};
   sectionData[section].rows ||= [];
   sectionData[section].rows.unshift(row);
+  if (section === "Family") {
+    const selectedIndex = applyFamilyAccountHolderRules(appState.activeApplicant);
+    if (selectedIndex >= 0) syncAccountHolderFromFamily(appState.activeApplicant, selectedIndex, { log: false });
+  }
   storeObject(storageKeys.profileSections, data.profileSections);
   appendProfileLog(appState.activeApplicant, {
     type: "new",
@@ -6799,8 +8529,12 @@ function saveProfileRow(section, rowIndex) {
     }
     row[key] = nextValue;
   });
-  if (section === "Family" && familyRowIsAccountHolder(row)) {
-    syncAccountHolderFromFamily(record, index, { log: false });
+  if (section === "Family" && formData.has("dob_bs")) {
+    row.dob_bs = String(formData.get("dob_bs") || "").trim();
+  }
+  if (section === "Family") {
+    const selectedIndex = applyFamilyAccountHolderRules(record);
+    if (selectedIndex >= 0) syncAccountHolderFromFamily(record, selectedIndex, { log: false });
   }
   if (!changes.length) {
     closeDetailDrawer();
@@ -6964,6 +8698,8 @@ function selectFamilyAccountHolder(rowIndex) {
   const previousIndex = familyAccountHolderIndex(record);
   rows.forEach((familyRow, index) => {
     familyRow.account_holder = index === rowIndex ? "true" : "false";
+    if (index === rowIndex) familyRow.account_holder_source = "manual";
+    else if (String(familyRow.account_holder_source || "").toLowerCase() === "type") delete familyRow.account_holder_source;
   });
   appState.familyAccountHolderSelectionMode = false;
   syncAccountHolderFromFamily(record, rowIndex, { log: false });
@@ -7199,11 +8935,15 @@ function openAccountPanel(panel) {
   if (panel === "sample") {
     const section = accountSectionData(appState.activeApplicant, "Transaction Records");
     section.sample_settings = { ...defaultSampleRecordSettings(), ...(section.sample_settings || {}) };
+    const sampleOpeningDate = parseAccountDate(section.sample_settings.opening_date) || parseAccountDate(accountSectionData(appState.activeApplicant, "Account Information").opening_date) || defaultAccountOpeningDate(appState.activeApplicant);
+    section.sample_settings.opening_date = formatLongAccountDate(sampleOpeningDate);
+    section.sample_settings.closing_balance_date = formatLongAccountDate(sampleHorizonClosingDate(sampleOpeningDate, 3));
+    section.sample_settings.sample_horizon_years = "3";
     const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
     if (!samplePreviewIsValid(section.sample_preview, section.sample_settings, accountInfo)) {
       section.sample_preview = buildStatementRows(
         generateSampleTransactions(section.sample_settings, accountInfo),
-        accountInfo,
+        sampleAccountInfo(accountInfo, section.sample_settings),
       ).rows;
       section.sample_settings = sampleSettingsWithGeneratedFigures(section.sample_settings, section.sample_preview);
     }
@@ -7352,7 +9092,7 @@ function previewSampleRecords() {
   section.sample_settings = settings;
   section.sample_preview = buildStatementRows(
     generateSampleTransactions(settings, accountInfo),
-    accountInfo,
+    sampleAccountInfo(accountInfo, settings),
   ).rows;
   section.sample_settings = sampleSettingsWithGeneratedFigures(settings, section.sample_preview);
   storeObject(storageKeys.profileSections, data.profileSections);
@@ -7372,7 +9112,7 @@ function regenerateSampleRecords() {
   section.sample_settings = settings;
   section.sample_preview = buildStatementRows(
     generateSampleTransactions(settings, accountInfo),
-    accountInfo,
+    sampleAccountInfo(accountInfo, settings),
   ).rows;
   section.sample_settings = sampleSettingsWithGeneratedFigures(settings, section.sample_preview);
   storeObject(storageKeys.profileSections, data.profileSections);
@@ -7391,7 +9131,7 @@ function resetSampleRecordData() {
   const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
   section.sample_preview = buildStatementRows(
     generateSampleTransactions(section.sample_settings, accountInfo),
-    accountInfo,
+    sampleAccountInfo(accountInfo, section.sample_settings),
   ).rows;
   section.sample_settings = sampleSettingsWithGeneratedFigures(section.sample_settings, section.sample_preview);
   storeObject(storageKeys.profileSections, data.profileSections);
@@ -7417,7 +9157,7 @@ function applySampleRecords() {
     ? section.sample_preview
     : buildStatementRows(
       generateSampleTransactions(settings),
-      accountSectionData(appState.activeApplicant, "Account Information"),
+      sampleAccountInfo(accountSectionData(appState.activeApplicant, "Account Information"), settings),
     ).rows;
   section.sample_settings = sampleSettingsWithGeneratedFigures(settings, rows);
   section.rows = rows.map((row, index) => ({ ...row, [fieldKey("#")]: String(index + 1), _selected: false }));
@@ -7518,6 +9258,9 @@ function sampleRecordSettings() {
   const formData = form ? new FormData(form) : new FormData();
   const section = accountSectionData(appState.activeApplicant, "Transaction Records");
   const current = section.sample_settings || defaultSampleRecordSettings();
+  const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
+  const openingDate = parseAccountDate(current.opening_date) || parseAccountDate(accountInfo.opening_date) || defaultAccountOpeningDate(appState.activeApplicant);
+  const closingDate = sampleHorizonClosingDate(openingDate, 3);
   const currentCreditFigures = parseSampleFigures(current.credit_amount_figures);
   const currentDebitFigures = parseSampleFigures(current.debit_amount_figures);
   const enteredCreditFigures = parseSampleFigures(formData.get("credit_amount_figures") || current.credit_amount_figures);
@@ -7533,8 +9276,9 @@ function sampleRecordSettings() {
     total_debit_upto: String(formData.get("total_debit_upto") || current.total_debit_upto || "2100000").trim(),
     debit_gap: String(formData.get("debit_gap") || current.debit_gap || "5").trim(),
     credit_gap: String(formData.get("credit_gap") || current.credit_gap || "5").trim(),
-    opening_date: String(current.opening_date || "20 August, 2025").trim(),
-    closing_balance_date: String(current.closing_balance_date || "19 August, 2026").trim(),
+    opening_date: formatLongAccountDate(openingDate),
+    closing_balance_date: formatLongAccountDate(closingDate),
+    sample_horizon_years: "3",
     transaction_persons: String(current.transaction_persons || accountTransactionPeople.join(", ")).trim(),
     sample_seed: String(current.sample_seed || "Dhan-Account").trim(),
   };
@@ -7555,6 +9299,7 @@ function sampleSettingsWithGeneratedFigures(settings, rows) {
 
 function defaultSampleRecordSettings() {
   const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
+  const openingDate = parseAccountDate(accountInfo.opening_date) || defaultAccountOpeningDate(appState.activeApplicant);
   return {
     credit_amount_figures: defaultSampleCreditFigures.join(", "),
     debit_amount_figures: defaultSampleDebitFigures.join(", "),
@@ -7564,10 +9309,27 @@ function defaultSampleRecordSettings() {
     total_debit_upto: "2100000",
     debit_gap: "5",
     credit_gap: "5",
-    opening_date: accountInfo.opening_date || "20 August, 2025",
-    closing_balance_date: "19 August, 2026",
+    opening_date: formatLongAccountDate(openingDate),
+    closing_balance_date: formatLongAccountDate(sampleHorizonClosingDate(openingDate, 3)),
+    sample_horizon_years: "3",
     transaction_persons: accountTransactionPeople.join(", "),
     sample_seed: "Dhan-Account",
+  };
+}
+
+function sampleHorizonClosingDate(openingDateValue, years = 3) {
+  const openingDate = openingDateValue instanceof Date ? new Date(openingDateValue) : parseAccountDate(openingDateValue);
+  const date = openingDate || defaultAccountOpeningDate(appState.activeApplicant);
+  const closingDate = new Date(date);
+  closingDate.setFullYear(closingDate.getFullYear() + Math.max(1, Number(years) || 3));
+  return closingDate;
+}
+
+function sampleAccountInfo(accountInfo = {}, settings = {}) {
+  return {
+    ...accountInfo,
+    opening_date: settings.opening_date || accountInfo.opening_date,
+    closing_balance_date: settings.closing_balance_date || accountInfo.closing_balance_date,
   };
 }
 
@@ -7662,19 +9424,34 @@ function generateSampleTransactions(settings, accountInfo = {}) {
     : (appState.activeApplicant ? accountSectionData(appState.activeApplicant, "Account Information") : {});
   const debitConfigured = parseSampleFigures(settings.debit_amount_figures || defaultSampleDebitFigures.join(","));
   const creditConfigured = parseSampleFigures(settings.credit_amount_figures || defaultSampleCreditFigures.join(","));
-  const start = parseAccountDate(settings.opening_date) || new Date(2025, 7, 20);
-  const end = parseAccountDate(settings.closing_balance_date) || new Date(2026, 8, 30);
+  const start = parseAccountDate(settings.opening_date) || defaultAccountOpeningDate(appState.activeApplicant);
+  const end = sampleHorizonClosingDate(start, settings.sample_horizon_years || 3);
+  const generationAccountInfo = sampleAccountInfo(effectiveAccountInfo, {
+    opening_date: formatLongAccountDate(start),
+    closing_balance_date: formatLongAccountDate(end),
+  });
   const people = String(settings.transaction_persons || "").split(",").map((person) => person.trim()).filter(Boolean);
   const random = sampleRandom(settings.sample_seed || "Dhan-Account");
   const debitCount = Math.max(1, Number(settings.debit_entries) || Math.max(twoA4PageEntriesPerSide, debitConfigured.length));
   const creditCount = Math.max(1, Number(settings.credit_entries) || Math.max(twoA4PageEntriesPerSide, creditConfigured.length));
   const usedAmounts = new Set();
   const debitFigures = randomAmountFigures(debitCount, random, settings.total_debit_upto, usedAmounts);
-  const creditFigures = randomAmountFigures(creditCount, random, settings.total_credit_upto, usedAmounts);
-  const typedRows = shuffleSampleRows([
+  // The opening-date credit is a fixed 1,000 entry. The selected credit-entry
+  // count still remains exact, so the remaining figures are generated uniquely.
+  usedAmounts.add(1000);
+  const creditFigures = [1000, ...randomAmountFigures(
+    Math.max(0, creditCount - 1),
+    random,
+    Math.max(0, moneyValue(settings.total_credit_upto) - 1000),
+    usedAmounts,
+  )];
+  const typedRows = [
+    { kind: "credit", amount: 1000, openingCredit: true },
+    ...shuffleSampleRows([
     ...debitFigures.map((amount) => ({ kind: "debit", amount })),
-    ...creditFigures.map((amount) => ({ kind: "credit", amount })),
-  ], random);
+    ...creditFigures.filter((amount) => amount !== 1000).map((amount) => ({ kind: "credit", amount })),
+    ], random),
+  ];
   const dateSeries = randomTransactionDateSeries(typedRows, { ...settings, opening_date: start, closing_balance_date: end }, random);
   const generated = typedRows.map((item, index) => {
     const dateInfo = dateSeries[index];
@@ -7687,10 +9464,11 @@ function generateSampleTransactions(settings, accountInfo = {}) {
       transaction_by: people[Math.floor(random() * people.length)] || accountTransactionPeople[index % accountTransactionPeople.length],
       debit: item.kind === "debit" ? formatMoney(item.amount) : "",
       credit: item.kind === "credit" ? formatMoney(item.amount) : "",
+      _opening_credit: item.openingCredit === true,
       reference_no: "",
     };
   });
-  return balanceTargetedSampleTransactions(generated, effectiveAccountInfo, random);
+  return balanceTargetedSampleTransactions(generated, generationAccountInfo, random);
 }
 
 function balanceTargetedSampleTransactions(rows, accountInfo = {}, random = Math.random) {
@@ -7767,63 +9545,136 @@ function samplePreviewIsValid(rows, settings, accountInfo) {
   const credit = userRows.filter((row) => moneyValue(row.credit) > 0).map((row) => moneyValue(row.credit));
   const amounts = [...debit, ...credit];
   const unique = new Set(amounts);
-  const balance = calculateTransactionFinancials(rows, accountInfo).balance;
+  const balance = calculateTransactionFinancials(rows, sampleAccountInfo(accountInfo, settings)).balance;
+  const openingDate = parseAccountDate(settings.opening_date);
+  const hasOpeningCredit = userRows.some((row) => moneyValue(row.credit) === 1000
+    && openingDate
+    && parseAccountDate(row.date)?.getTime() === openingDate.getTime());
   return debit.length === expectedDebit
     && credit.length === expectedCredit
-    && amounts.every((amount) => amount >= 10000 && amount <= 99900)
+    && hasOpeningCredit
+    && amounts.every((amount) => amount === 1000 || (amount >= 10000 && amount <= 99900))
     && unique.size === amounts.length
     && balance > 2300000
     && balance < 2800000;
 }
 
 function randomTransactionDateSeries(items, settings, random) {
-  const start = parseAccountDate(settings.opening_date) || new Date(2025, 7, 20);
-  const end = parseAccountDate(settings.closing_balance_date) || new Date(2026, 8, 30);
+  const start = parseAccountDate(settings.opening_date) || defaultAccountOpeningDate(appState.activeApplicant);
+  const end = sampleHorizonClosingDate(start, settings.sample_horizon_years || 3);
   const dayMs = 86400000;
-  const gapCount = Math.max(0, items.length - 1);
   const workingDates = transactionWorkingDates(start, end);
   if (!workingDates.length) return items.map(() => ({ date: formatAccountDate(start), days: 0 }));
-  const firstWorkingIndex = 0;
-  const lastWorkingIndex = workingDates.length - 1;
-  const totalWorkingDays = Math.max(0, lastWorkingIndex - firstWorkingIndex);
-  const maximumGap = Math.min(30, Math.max(1, totalWorkingDays));
-  const minimumGap = totalWorkingDays >= gapCount ? 1 : 0;
-  const averageGap = totalWorkingDays / Math.max(1, gapCount);
-  const randomGapMaximum = Math.min(maximumGap, Math.max(minimumGap + 2, Math.ceil(averageGap * 2)));
-  let gaps = [];
-  for (let attempt = 0; attempt < 200 && !gaps.length; attempt += 1) {
-    const candidateGaps = [];
-    for (let index = 0; index < gapCount; index += 1) {
-      const options = Array.from(
-        { length: randomGapMaximum - minimumGap + 1 },
-        (_, offset) => minimumGap + offset,
-      ).filter((gap) => gap !== candidateGaps[index - 1]);
-      candidateGaps.push(options[Math.floor(random() * options.length)]);
+  if (items.length === 1) return [{ date: formatAccountDate(start), days: 0 }];
+
+  // Keep the opening credit on the account opening date, then distribute all
+  // remaining entries across the opening year and the next three calendar
+  // years. The opening-year bucket prevents an artificial long gap after the
+  // first credit, while the three following years get strictly more user
+  // transactions than one another whenever the selected count allows it.
+  const horizonYears = Math.max(1, Number(settings.sample_horizon_years) || 3);
+  const transactionYears = Array.from({ length: Math.min(4, horizonYears + 1) }, (_, index) => start.getFullYear() + index);
+  const remainingItems = Math.max(0, items.length - 1);
+  const counts = transactionYears.map(() => 0);
+  if (remainingItems > 0 && counts.length) {
+    const weights = counts.map((_, index) => [1, 3, 4, 5][index] || (index + 1));
+    const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+    let assigned = 0;
+    counts.forEach((_, index) => {
+      counts[index] = Math.max(1, Math.floor((remainingItems * weights[index]) / weightTotal));
+      assigned += counts[index];
+    });
+    while (assigned < remainingItems) {
+      counts[counts.length - 1] += 1;
+      assigned += 1;
     }
-    let difference = totalWorkingDays - candidateGaps.reduce((sum, gap) => sum + gap, 0);
-    let guard = 10000;
-    while (difference && guard > 0) {
-      const direction = difference > 0 ? 1 : -1;
-      const indices = candidateGaps.map((gap, index) => {
-        const next = gap + direction;
-        const previous = candidateGaps[index - 1];
-        const following = candidateGaps[index + 1];
-        return next >= minimumGap && next <= randomGapMaximum && next !== previous && next !== following ? index : -1;
-      }).filter((index) => index >= 0);
-      if (!indices.length) break;
-      const index = indices[Math.floor(random() * indices.length)];
-      candidateGaps[index] += direction;
-      difference -= direction;
-      guard -= 1;
+    while (assigned > remainingItems) {
+      const removable = counts.findIndex((value, index) => value > 1 && (index === 0 || value - 1 > counts[index - 1]));
+      if (removable < 0) break;
+      counts[removable] -= 1;
+      assigned -= 1;
     }
-    if (!difference && candidateGaps.every((gap, index) => index === 0 || gap !== candidateGaps[index - 1])) gaps = candidateGaps;
   }
-  if (!gaps.length) gaps = Array.from({ length: gapCount }, () => Math.max(minimumGap, Math.floor(averageGap)));
-  let cursorIndex = firstWorkingIndex;
+
+  const datesByYear = new Map(transactionYears.map((year) => [year, workingDates.filter((date) => date.getFullYear() === year)]));
+  const interestDates = interestPostingSchedule(start, end).map((entry) => entry.date);
+  const selectedDates = [start];
+  for (let bucket = 0; bucket < transactionYears.length; bucket += 1) {
+    const year = transactionYears[bucket];
+    const yearDates = datesByYear.get(year) || [];
+    const count = counts[bucket] || 0;
+    if (!yearDates.length || !count) continue;
+
+    // Use the interest-posting schedule as fixed anchors, then place user
+    // transactions into any remaining gap larger than 30 days. This keeps the
+    // generated statement faithful to the interest calendar without allowing
+    // a sparse random series to create an implausibly long interval.
+    const previousDate = selectedDates.at(-1) || start;
+    const yearEnd = year === end.getFullYear()
+      ? end
+      : new Date(year, 11, 31, 12, 0, 0, 0);
+    const anchors = [
+      previousDate,
+      ...interestDates.filter((date) => date.getFullYear() === year),
+      yearEnd,
+    ].sort((a, b) => a - b);
+    const chosen = [];
+    const chosenKeys = new Set();
+    const addNearestWorkingDate = (left, right) => {
+      const gapDays = Math.round((right - left) / dayMs);
+      if (gapDays <= 30 || chosen.length >= count) return false;
+      const target = new Date(left.getTime() + 30 * dayMs);
+      const candidates = yearDates
+        .filter((date) => date > left && date < right && !chosenKeys.has(date.getTime()))
+        .sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
+      const candidate = candidates[0];
+      if (!candidate) return false;
+      chosen.push(candidate);
+      chosenKeys.add(candidate.getTime());
+      return true;
+    };
+
+    // Fill long anchor-to-anchor gaps first, including the opening-date gap.
+    for (let index = 1; index < anchors.length && chosen.length < count; index += 1) {
+      let left = anchors[index - 1];
+      const right = anchors[index];
+      while (Math.round((right - left) / dayMs) > 30 && chosen.length < count) {
+        if (!addNearestWorkingDate(left, right)) break;
+        left = chosen.at(-1);
+      }
+    }
+
+    // Use any remaining rows to add randomized entries, without removing the
+    // required density anchors above. Extra dates can only reduce a gap.
+    const remainingCandidates = yearDates.filter((date) => !chosenKeys.has(date.getTime()));
+    for (let offset = 0; chosen.length < count && remainingCandidates.length; offset += 1) {
+      const ratio = (offset + 1) / (count + 1);
+      const baseIndex = Math.round((remainingCandidates.length - 1) * ratio);
+      const jitter = remainingCandidates.length > 2 ? Math.floor((random() - 0.5) * 3) : 0;
+      const candidateIndex = Math.max(0, Math.min(remainingCandidates.length - 1, baseIndex + jitter));
+      const candidate = remainingCandidates.splice(candidateIndex, 1)[0];
+      if (!chosenKeys.has(candidate.getTime())) {
+        chosen.push(candidate);
+        chosenKeys.add(candidate.getTime());
+      }
+    }
+    chosen.sort((a, b) => a - b);
+    selectedDates.push(...chosen);
+  }
+
+  // Fallback for unusual short ranges: keep the exact requested number of
+  // rows while preserving chronological order and working-day constraints.
+  while (selectedDates.length < items.length) {
+    const fallbackIndex = Math.min(workingDates.length - 1, Math.round((selectedDates.length / items.length) * (workingDates.length - 1)));
+    const fallbackDate = workingDates[fallbackIndex];
+    if (!selectedDates.some((date) => date.getTime() === fallbackDate.getTime())) selectedDates.push(fallbackDate);
+    else selectedDates.push(workingDates[Math.min(workingDates.length - 1, fallbackIndex + 1)]);
+  }
+  selectedDates.length = items.length;
+  selectedDates.sort((a, b) => a - b);
   return items.map((item, index) => {
-    if (index) cursorIndex = Math.min(lastWorkingIndex, cursorIndex + gaps[index - 1]);
-    const current = workingDates[cursorIndex];
-    const previous = index ? workingDates[Math.max(firstWorkingIndex, cursorIndex - gaps[index - 1])] : current;
+    const current = selectedDates[index] || start;
+    const previous = index ? selectedDates[index - 1] : current;
     const calendarGap = index ? Math.round((current - previous) / dayMs) : 0;
     return { date: formatAccountDate(current), days: calendarGap };
   });
@@ -7988,14 +9839,20 @@ function buildStatementRows(rows, accountInfo = {}) {
   };
 }
 
-function sampleRecordSummary(rows) {
-  const accountInfo = accountSectionData(appState.activeApplicant, "Account Information");
+function sampleRecordSummary(rows, settings = {}) {
+  const accountInfo = sampleAccountInfo(
+    accountSectionData(appState.activeApplicant, "Account Information"),
+    settings,
+  );
   const financials = calculateTransactionFinancials(rows, accountInfo);
   const userRows = (Array.isArray(rows) ? rows : []).filter((row) => !["interest", "tax"].includes(row._entry_type));
   const dates = rows.map((row) => parseAccountDate(row.date)).filter(Boolean).sort((a, b) => a - b);
-  const gaps = rows.map((row) => Number(row.days) || 0).filter(Boolean);
+  // Report the actual calendar gap between visible transaction dates. The
+  // row-level `days` field intentionally follows the interest-accrual clock
+  // (previous interest posting → transaction), so it is not the same metric.
+  const gaps = dates.slice(1).map((date, index) => Math.max(0, Math.round((date - dates[index]) / 86400000)));
   const openingDate = parseAccountDate(accountInfo.opening_date) || dates[0];
-  const closingDate = parseAccountDate(accountInfo.closing_balance_date) || dates.at(-1);
+  const closingDate = dates.at(-1) || parseAccountDate(accountInfo.closing_balance_date);
   const months = openingDate && closingDate ? Math.max(1, Math.round((closingDate - openingDate) / (86400000 * 30))) : 0;
   return {
     opening: financials.opening,
@@ -8198,6 +10055,18 @@ function applicantListRow(applicant, index, headers) {
 function initialsFor(name) {
   const words = String(name || "LA").trim().split(/\s+/).filter(Boolean);
   return words.slice(0, 2).map((word) => word[0]?.toUpperCase() || "").join("") || "LA";
+}
+
+function profilePhotoPlaceholder(gender, name = "Applicant", size = "standard") {
+  const normalizedGender = String(gender || "").trim().toLowerCase();
+  const variant = normalizedGender.includes("female") ? "female" : normalizedGender.includes("male") ? "male" : "other";
+  const label = variant === "female" ? "Female profile placeholder" : variant === "male" ? "Male profile placeholder" : "Profile placeholder";
+  const hair = variant === "female"
+    ? `<path class="profile-placeholder-hair" d="M29 45c-4-18 5-31 21-31s25 13 21 31l-7-7c-2 5-7 8-14 8s-12-3-14-8l-7 7Z" />`
+    : variant === "male"
+      ? `<path class="profile-placeholder-hair" d="M34 29c2-11 9-16 16-16 9 0 15 6 16 16-5-4-10-6-16-6s-11 2-16 6Z" />`
+      : "";
+  return `<span class="profile-photo-placeholder profile-photo-placeholder-${variant} profile-photo-placeholder-${size}" role="img" aria-label="${escapeHtml(`${label} for ${name}`)}"><svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="34" r="15" /><path d="M22 88c3-18 14-29 28-29s25 11 28 29" />${hair}</svg></span>`;
 }
 
 function convertVisitor(button) {
@@ -8464,7 +10333,7 @@ function openApplicantMorePanel(record = appState.activeApplicant) {
         <span>Date duration compare date in document (i.e. calculate Age)</span>
         <div class="profile-more-date-control">
           <input name="profile_more_date" value="${escapeHtml(displayDate)}" placeholder=" " readonly data-action="open-profile-more-calendar" aria-haspopup="true" aria-expanded="${appState.profileMoreCalendarOpen ? "true" : "false"}" />
-          <button type="button" class="date-picker-trigger profile-more-date-trigger" data-action="open-profile-more-calendar" title="Select date" aria-label="Select date"><span class="calendar-trigger-glyph" aria-hidden="true">▦</span></button>
+          <button type="button" class="date-picker-trigger profile-more-date-trigger" data-action="open-profile-more-calendar" title="Select date" aria-label="Select date"><span class="calendar-trigger-glyph" aria-hidden="true"><i data-lucide="calendar-days" aria-hidden="true"></i></span></button>
         </div>
       </label>
       ${renderProfileMoreCalendar(selectedDate)}
@@ -8600,13 +10469,64 @@ function shareApplicantProfile(record = appState.activeApplicant) {
   else done();
 }
 
-function chooseApplicantPhoto() {
+function readApplicantPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("Unable to read image"));
+    reader.onload = () => {
+      const source = String(reader.result || "");
+      const image = new Image();
+      image.onerror = () => resolve(source);
+      image.onload = () => {
+        const maxSize = 640;
+        const scale = Math.min(1, maxSize / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+        canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(source);
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.86));
+      };
+      image.src = source;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function chooseApplicantPhoto() {
+  if (!appState.activeApplicant) return;
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
-  input.addEventListener("change", () => {
+  input.addEventListener("change", async () => {
     const file = input.files?.[0];
-    if (file) showToast(`${file.name} selected for applicant photo locally.`);
+    if (!file) return;
+    try {
+      const photo = await readApplicantPhoto(file);
+      const record = appState.activeApplicant;
+      const previousPhoto = String(record.photo || record.avatar_url || record.avatar || "");
+      record.photo = photo;
+      const localRecord = data.localApplicants.find((item) => String(item.id || item.localId || "") === String(record.id || record.localId || "") || String(item.name || "").trim().toLowerCase() === String(record.name || "").trim().toLowerCase());
+      if (localRecord) {
+        localRecord.photo = photo;
+        storeArray(storageKeys.applicants, data.localApplicants);
+      }
+      storeObject(storageKeys.activeApplicant, record);
+      appendProfileLog(record, {
+        type: "changed",
+        tab: "Detail",
+        dataModule: "Applicant Photo",
+        changes: [{ field: "Applicant photo", oldValue: previousPhoto ? "Uploaded photo" : "Initials", newValue: file.name }],
+      });
+      render();
+      showToast(`${file.name} uploaded and saved for ${record.name || "Applicant"}.`);
+    } catch {
+      showToast("The selected photo could not be read. Please choose another image.");
+    }
   }, { once: true });
   input.click();
 }
@@ -9015,12 +10935,10 @@ function openTopbarPanel(type) {
     ["Document Log", `${(window.fullDocumentLogs || data.documentLogs).length} captured exports`, "Review"],
     ["SMS", `${data.localSmsDrafts.length} local drafts`, "Drafts"],
   ];
+  const mentionNotifications = pendingCommentAssignments();
   const appLaunchers = [
     ["Dashboard", "dashboard", "Lifecycle and recent activity"],
-    ["Visitor Entry", "visitor-entry", "Frontdesk intake"],
-    ["Visitor List", "visitor-list", "28 transferred records"],
     ["Applicant List", "applicants", "64 captured inquiry records"],
-    ["Payment Dashboard", "payment-dashboard", "Outstanding dues and aging"],
     ["SMS Report", "sms-report", "36 captured SMS rows"],
     ["Document Log", "document-log", "833 captured export rows"],
     ["Data Import", "data-import", "Import wizard"],
@@ -9029,11 +10947,12 @@ function openTopbarPanel(type) {
   const panels = {
     notifications: `
       <div class="drawer-head">
-        <div><strong>Notifications</strong><small>Local activity center</small></div>
+        <div><strong>Notifications</strong><small>${mentionNotifications.length} unresolved mention${mentionNotifications.length === 1 ? "" : "s"} · persistent assignments</small></div>
         <button class="icon-button" data-action="close-drawer" title="Close">x</button>
       </div>
-      ${table(["Type", "Record", "Status"], notifications)}
-      <div class="tool-result"><strong>Synced locally</strong><span>Followups, payment drafts, SMS drafts and document-log counts are summarized here.</span></div>
+      ${mentionNotifications.length ? `<div class="mention-notification-list">${mentionNotifications.map(({ assignment, comment }) => `<button type="button" class="mention-notification-item" data-action="open-comment-notification" data-comment-id="${escapeHtml(comment.id)}"><span class="mention-notification-icon"><i data-lucide="at-sign" aria-hidden="true">@</i></span><span><strong>${escapeHtml(assignment.userName)}</strong><b>${escapeHtml(commentApplicantRecord(comment)?.name || "Applicant comment")}</b><small>${escapeHtml(comment.authorName || "You")} · ${escapeHtml(relativeCommentTime(comment.createdAt))} · Pending</small></span><i data-lucide="chevron-right" aria-hidden="true">›</i></button>`).join("")}</div>` : `<div class="empty mention-empty-state"><i data-lucide="bell-off" aria-hidden="true"></i><span>No unresolved comment assignments.</span></div>`}
+      <div class="tool-result"><strong>Persistent mention notifications</strong><span>Reading a notification does not resolve it. Each assignment remains pending until its Resolve action is completed.</span></div>
+      ${notifications.length ? `<details class="legacy-notification-details"><summary>Other activity</summary>${table(["Type", "Record", "Status"], notifications)}</details>` : ""}
     `,
     apps: `
       <div class="drawer-head">

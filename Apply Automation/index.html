@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>STUDENT VISA - JAPAN</title>
-  <link rel="stylesheet" href="./styles.css?v=profile-sidebar-v2" />
+  <link rel="stylesheet" href="./styles.css?v=topbar-lucide-icons-v1" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,14 +12,14 @@
       <main class="workspace">
         <header class="topbar">
           <div class="quick-search">
-            <span class="icon">⌕</span>
+            <span class="icon" aria-hidden="true"><i data-lucide="search">⌕</i></span>
             <input id="globalSearch" type="search" placeholder="Quick search..." />
           </div>
           <div class="top-actions">
-            <button class="icon-button theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode" data-action="toggle-theme">◐</button>
-            <button class="icon-button" title="Notifications" data-action="top-notifications">◈</button>
-            <button class="icon-button" title="SMS" data-action="new-sms">✉</button>
-            <button class="icon-button" title="Apps" data-action="top-apps">▦</button>
+            <button class="icon-button theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode" data-action="toggle-theme"><i data-lucide="circle-half" aria-hidden="true">◐</i></button>
+            <button class="icon-button notification-bell" title="Notifications" aria-label="Notifications" data-action="top-notifications"><i data-lucide="bell" aria-hidden="true">◈</i><span class="notification-badge" aria-live="polite" hidden>0</span></button>
+            <button class="icon-button" title="SMS" aria-label="SMS" data-action="new-sms"><i data-lucide="mail" aria-hidden="true">✉</i></button>
+            <button class="icon-button" title="Apps" aria-label="Apps" data-action="top-apps"><i data-lucide="grid-2x2" aria-hidden="true">▦</i></button>
             <button class="avatar" title="Profile" data-action="top-profile">SJ</button>
           </div>
         </header>
@@ -32,6 +32,6 @@
     <script src="./template-library.js?v=document-templates-rea-2"></script>
     <script src="./document-checklist-master.js?v=sjla-checklist-v1"></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
-  <script src="./app.js?v=sidebar-lucide-v1"></script>
+  <script src="./app.js?v=sections-hidden-v1"></script>
   </body>
 </html>

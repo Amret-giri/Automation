@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 8765);
 const HOST = process.env.HOST || "0.0.0.0";
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const UPLOAD_INDEX = path.join(UPLOAD_DIR, "index.json");
+const COMMENT_STORE = path.join(__dirname, "comment-system.json");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -279,7 +280,7 @@ function resolveTemplateCode(rawCode, record = {}, sections = {}) {
     dob: official.dob || official.dob_bs,
     "birth place": application.birth_place,
     "citizenship no": official.citizenship_no,
-    nid: official.nid || official.nid_no,
+    nid: official.nid,
     "passport no": record.passport || official.passport_no,
     "passport issued date": official.passport_issued_date,
     "passport expiry date": record.passportExpiry || official.passport_expiry_date,
@@ -625,6 +626,19 @@ function writeUploadIndex(entries) {
   fs.writeFileSync(UPLOAD_INDEX, JSON.stringify(entries, null, 2));
 }
 
+function readCommentStore() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(COMMENT_STORE, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCommentStore(comments) {
+  fs.writeFileSync(COMMENT_STORE, JSON.stringify(comments, null, 2));
+}
+
 async function readRequestBody(request) {
   let raw = "";
   for await (const chunk of request) raw += chunk;
@@ -646,6 +660,22 @@ const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
   if (request.method === "GET" && pathname === "/api/uploaded-templates") {
     sendJson(response, 200, { ok: true, entries: readUploadIndex() });
+    return;
+  }
+  if (request.method === "GET" && pathname === "/api/comment-system") {
+    sendJson(response, 200, { ok: true, comments: readCommentStore() });
+    return;
+  }
+  if (request.method === "POST" && pathname === "/api/comment-system") {
+    try {
+      const body = JSON.parse(await readRequestBody(request));
+      const comments = body?.comments;
+      if (!comments || typeof comments !== "object" || Array.isArray(comments)) throw new Error("Invalid comment store");
+      writeCommentStore(comments);
+      sendJson(response, 200, { ok: true, updatedAt: new Date().toISOString() });
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error?.message || "Comment store update failed" });
+    }
     return;
   }
   if (request.method === "POST" && pathname === "/api/upload-template") {
