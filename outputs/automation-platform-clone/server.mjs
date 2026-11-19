@@ -420,7 +420,10 @@ function resolveTemplateCode(rawCode, record = {}, sections = {}) {
 }
 
 function replaceTextNodes(segment, resolve) {
-  const nodePattern = /(<(?:w:t|t|v)\b[^>]*>)([\s\S]*?)(<\/(?:w:t|t|v)>)/g;
+  // Match only the unqualified Office text/value elements. A word-boundary
+  // after `v` also matches namespaced VML tags such as `<v:rect>`, which can
+  // make the position-based replacement rebuild a DOCX with broken XML.
+  const nodePattern = /(<(?:w:t|t|v)(?:\s[^>]*)?>)([\s\S]*?)(<\/(?:w:t|t|v)>)/g;
   let nodes = [];
   let match;
   while ((match = nodePattern.exec(segment))) nodes.push({ start: match.index, end: nodePattern.lastIndex, open: match[1], raw: match[2], close: match[3], text: xmlDecode(match[2]) });
@@ -463,10 +466,11 @@ function replaceXml(xml, resolve) {
   let output = xml.replace(/(<w:p\b[^>]*>[\s\S]*?<\/w:p>)/g, (paragraph) => replaceTextNodes(paragraph, resolve));
   output = output.replace(/(<si\b[^>]*>[\s\S]*?<\/si>)/g, (sharedString) => replaceTextNodes(sharedString, resolve));
   output = output.replace(/(<c\b[^>]*>[\s\S]*?<\/c>)/g, (cell) => replaceTextNodes(cell, resolve));
-  // Some Word exports keep a placeholder in a text node outside the normal
-  // paragraph shape. A final text-node pass catches those without touching
-  // the surrounding document structure or formatting.
-  return replaceTextNodes(output, resolve);
+  // Do not run a final pass over the whole XML document. Office files contain
+  // drawings, relationships, and other namespaced markup that may include
+  // escaped XML. Rebuilding the full document from text-node offsets can
+  // corrupt those structures even when the ZIP itself remains valid.
+  return output;
 }
 
 function sharedStringValues(xml) {
